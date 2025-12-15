@@ -51,6 +51,14 @@ export type {
 
 // ============ HOOKS ============
 
+// Hook factory - for creating custom provider hooks
+export {
+  createProviderHook,
+  type ProviderHookConfig,
+  type ProviderHookOptions,
+  type ProviderHookResult,
+} from './hooks/createProviderHook';
+
 // Unified hook (queries all DEXes)
 export {
   useDexPositions,
@@ -94,6 +102,14 @@ export {
   type ProviderRegistry,
 } from './providers';
 
+// Provider factory - for creating new providers
+export {
+  createProvider,
+  createSymbolMetadataProvider,
+  type ProviderConfig,
+  type SymbolMetadataProviderConfig,
+} from './providers';
+
 // HyperLiquid exports (for advanced use)
 export {
   hyperliquidProvider,
@@ -104,7 +120,9 @@ export {
   buildAssetDataMap,
   getDexNames,
   clearHyperliquidCache,
+  calculatePriceDecimals,
   type HyperliquidAssetData,
+  type HyperliquidPositionWithMeta,
 } from './providers';
 
 // Lighter exports (for advanced use)
@@ -114,8 +132,12 @@ export {
   fetchOrderBooks,
   fetchOrderBookDetails,
   fetchLighterMarkPrices,
+  fetchLighterPositions,
   buildLighterDecimalsMap,
+  buildLighterMetadata,
   clearLighterCache,
+  type LighterPositionWithMeta,
+  type LighterMetadata,
 } from './providers';
 
 // Pacifica exports (for advanced use)
@@ -127,6 +149,10 @@ export {
   fetchPacificaPrices,
   buildPacificaDecimalsMap,
   clearPacificaCache,
+  calculatePacificaPnl,
+  calculatePacificaPositionValue,
+  calculatePacificaMarginUsed,
+  calculatePacificaRoi,
   type PacificaPositionWithContext,
 } from './providers';
 
@@ -176,4 +202,38 @@ export {
   clearCache,
   clearCacheByPrefix,
   clearAllCache,
+} from './utils';
+
+// Cached fetch utilities
+export {
+  cachedFetch,
+  uncachedFetch,
+  type CachedFetchConfig,
+  type HttpMethod,
+} from './utils';
+
+// Metadata utilities
+export {
+  buildDecimalsMap,
+  buildAssetDataMap as buildGenericAssetDataMap,
+  buildSymbolMap,
+  calculateDecimalsFromString,
+  type DecimalsMap,
+  type AssetData,
+  type DecimalsMapConfig,
+  type AssetDataMapConfig,
+} from './utils';
+
+// Position calculation utilities
+export {
+  calculatePnl,
+  calculatePositionValue,
+  calculateMargin,
+  calculateRoi,
+  calculateRoiFull,
+  calculateLeverageFromIMF,
+  calculateHyperliquidPriceDecimals,
+  getSideFromSignedSize,
+  isZeroPosition,
+  type PositionSide,
 } from './utils';

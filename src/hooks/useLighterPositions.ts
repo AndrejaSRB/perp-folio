@@ -1,94 +1,31 @@
-import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+/**
+ * React hook for fetching Lighter positions
+ */
+
 import { lighterProvider } from '../providers/lighter';
-import { formatPositionPrices } from '../utils/formatting';
-import type { LighterPosition, NormalizedPosition } from '../types';
+import type { LighterPositionWithMeta } from '../providers/lighter';
+import {
+  createProviderHook,
+  type ProviderHookConfig,
+  type ProviderHookOptions,
+  type ProviderHookResult,
+} from './createProviderHook';
 
-export interface UseLighterPositionsConfig {
-  enabled?: boolean;
-  refetchInterval?: number | false;
-  refetchOnWindowFocus?: boolean;
-  staleTime?: number;
-  retry?: number | boolean;
-  /** Keep previous data while refetching (default: true) */
-  keepPreviousData?: boolean;
-  /** Format price fields (entryPrice, markPrice, liquidationPrice) using priceDecimals (default: false) */
-  formatPrices?: boolean;
-}
+// Re-export types with provider-specific names for backwards compatibility
+export type UseLighterPositionsConfig = ProviderHookConfig;
+export type UseLighterPositionsOptions = ProviderHookOptions;
+export type UseLighterPositionsResult = ProviderHookResult<LighterPositionWithMeta>;
 
-export interface UseLighterPositionsOptions extends UseLighterPositionsConfig {
-  wallets: string | string[];
-}
-
-export interface UseLighterPositionsResult {
-  /** Raw positions from Lighter API */
-  raw: LighterPosition[];
-  /** Normalized positions */
-  positions: NormalizedPosition[];
-  isLoading: boolean;
-  isFetching: boolean;
-  isError: boolean;
-  error: Error | null;
-  refetch: () => void;
-}
-
-export const useLighterPositions = (
-  options: UseLighterPositionsOptions
-): UseLighterPositionsResult => {
-  const {
-    wallets,
-    enabled = true,
-    refetchInterval,
-    refetchOnWindowFocus = false,
-    staleTime = 30_000,
-    retry = 2,
-    keepPreviousData = true,
-    formatPrices = false,
-  } = options;
-
-  const walletsArray = useMemo(
-    () => (Array.isArray(wallets) ? wallets : [wallets]),
-    [wallets]
-  );
-
-  const query = useQuery({
-    queryKey: ['lighter', 'positions', ...walletsArray.sort()],
-    queryFn: async () => {
-      const results = await Promise.all(
-        walletsArray.map(async (wallet) => {
-          const raw = await lighterProvider.fetchPositions(wallet);
-          const normalized = raw.map((r) =>
-            lighterProvider.normalizePosition(r, wallet)
-          );
-          return { raw, normalized };
-        })
-      );
-
-      return {
-        raw: results.flatMap((r) => r.raw),
-        normalized: results.flatMap((r) => r.normalized),
-      };
-    },
-    enabled,
-    refetchInterval,
-    refetchOnWindowFocus,
-    staleTime,
-    retry,
-    placeholderData: keepPreviousData ? (prev) => prev : undefined,
-  });
-
-  const positions = useMemo(() => {
-    const normalized = query.data?.normalized ?? [];
-    return formatPrices ? normalized.map(formatPositionPrices) : normalized;
-  }, [query.data?.normalized, formatPrices]);
-
-  return {
-    raw: query.data?.raw ?? [],
-    positions,
-    isLoading: query.isLoading,
-    isFetching: query.isFetching,
-    isError: query.isError,
-    error: query.error,
-    refetch: query.refetch,
-  };
-};
+/**
+ * Fetch and normalize Lighter perpetual positions
+ *
+ * @example
+ * ```tsx
+ * const { positions, isLoading, error } = useLighterPositions({
+ *   wallets: '0x123...',
+ *   formatPrices: true,
+ *   refetchInterval: 30000,
+ * });
+ * ```
+ */
+export const useLighterPositions = createProviderHook(lighterProvider);

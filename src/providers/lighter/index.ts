@@ -1,55 +1,54 @@
+/**
+ * Lighter provider - EVM perpetuals DEX
+ */
+
 import type { DexProvider } from '../types';
 import type { LighterPositionWithMeta } from './types';
 import {
-  fetchAccount,
+  fetchPositions,
   buildDecimalsMap,
   fetchMarkPrices,
 } from './api';
 import { normalizePosition } from './normalizer';
+import { isZeroPosition } from '../../utils/positionCalc';
 
 // ============================================
-// Provider export
+// Provider
 // ============================================
 
+/**
+ * Lighter provider with custom implementation
+ * Handles symbol-based mark price fetching
+ */
 export const lighterProvider: DexProvider<LighterPositionWithMeta> = {
   id: 'lighter',
   name: 'Lighter',
   chain: 'evm',
 
-  fetchPositions: async (address: string): Promise<LighterPositionWithMeta[]> => {
-    // First fetch account data
-    const accountData = await fetchAccount(address);
+  async fetchPositions(address: string): Promise<LighterPositionWithMeta[]> {
+    // Step 1: Fetch raw positions (aggregated from all accounts)
+    const rawPositions = await fetchPositions(address);
 
-    // No accounts found
-    if (accountData.accounts.length === 0) {
-      return [];
-    }
-
-    // Aggregate positions from all accounts (master + subaccounts)
-    const allPositions = accountData.accounts.flatMap(
-      (account) => account.positions
+    // Step 2: Filter out zero positions
+    const nonZeroPositions = rawPositions.filter(
+      (p) => !isZeroPosition(p.position)
     );
 
-    // Filter out zero positions
-    const nonZeroPositions = allPositions.filter(
-      (p) => parseFloat(p.position) !== 0
-    );
-
-    // Only fetch metadata if there are positions
+    // Step 3: Early return if no positions
     if (nonZeroPositions.length === 0) {
       return [];
     }
 
-    // Get unique symbols for mark price fetching
+    // Step 4: Get unique symbols for mark price fetching
     const symbols = [...new Set(nonZeroPositions.map((p) => p.symbol))];
 
-    // Fetch metadata and mark prices in parallel
+    // Step 5: Fetch metadata and mark prices in parallel
     const [decimalsMap, markPrices] = await Promise.all([
       buildDecimalsMap(),
       fetchMarkPrices(symbols),
     ]);
 
-    // Enrich with metadata
+    // Step 6: Enrich positions with metadata
     return nonZeroPositions.map((p) => ({
       ...p,
       _sizeDecimals: decimalsMap.sizeDecimals.get(p.symbol) ?? 0,
@@ -61,7 +60,10 @@ export const lighterProvider: DexProvider<LighterPositionWithMeta> = {
   normalizePosition,
 };
 
-// Re-export everything for external use
+// ============================================
+// Re-exports for external use
+// ============================================
+
 export type { LighterPositionWithMeta } from './types';
 export {
   fetchOrderBooks,
@@ -69,6 +71,9 @@ export {
   fetchMarkPrices,
   buildDecimalsMap,
   fetchAccount,
+  fetchPositions,
+  buildMetadata,
   clearLighterCache,
+  type LighterMetadata,
 } from './api';
 export { normalizePosition } from './normalizer';

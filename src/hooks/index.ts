@@ -1,3 +1,11 @@
+// Hook factory - for creating custom provider hooks
+export {
+  createProviderHook,
+  type ProviderHookConfig,
+  type ProviderHookOptions,
+  type ProviderHookResult,
+} from './createProviderHook';
+
 // Unified hook
 export {
   useDexPositions,

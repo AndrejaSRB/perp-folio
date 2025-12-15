@@ -121,3 +121,46 @@ export const fetchAccount = async (address: string): Promise<LighterAccountsResp
 export const clearLighterCache = (): void => {
   clearCacheByPrefix('lighter:');
 };
+
+/**
+ * Fetch all positions for an address (aggregated from all accounts)
+ */
+export const fetchPositions = async (address: string): Promise<LighterPosition[]> => {
+  const accountData = await fetchAccount(address);
+
+  if (accountData.accounts.length === 0) {
+    return [];
+  }
+
+  // Aggregate positions from all accounts (master + subaccounts)
+  return accountData.accounts.flatMap((account) => account.positions);
+};
+
+// Re-export LighterPosition type for use in fetchPositions
+import type { LighterPosition } from '../../types';
+
+/**
+ * Lighter metadata type with decimals and mark prices
+ */
+export interface LighterMetadata {
+  sizeDecimals: Map<string, number>;
+  priceDecimals: Map<string, number>;
+  markPrices: Map<string, string>;
+}
+
+/**
+ * Build complete metadata map including mark prices
+ * @param symbols - Optional list of symbols to fetch mark prices for
+ */
+export const buildMetadata = async (symbols?: string[]): Promise<LighterMetadata> => {
+  const [decimalsMap, markPrices] = await Promise.all([
+    buildDecimalsMap(),
+    symbols && symbols.length > 0 ? fetchMarkPrices(symbols) : Promise.resolve(new Map<string, string>()),
+  ]);
+
+  return {
+    sizeDecimals: decimalsMap.sizeDecimals,
+    priceDecimals: decimalsMap.priceDecimals,
+    markPrices,
+  };
+};

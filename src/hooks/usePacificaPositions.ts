@@ -1,94 +1,31 @@
-import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+/**
+ * React hook for fetching Pacifica positions
+ */
+
 import { pacificaProvider } from '../providers/pacifica';
-import { formatPositionPrices } from '../utils/formatting';
-import type { PacificaPosition, NormalizedPosition } from '../types';
+import type { PacificaPositionWithContext } from '../providers/pacifica';
+import {
+  createProviderHook,
+  type ProviderHookConfig,
+  type ProviderHookOptions,
+  type ProviderHookResult,
+} from './createProviderHook';
 
-export interface UsePacificaPositionsConfig {
-  enabled?: boolean;
-  refetchInterval?: number | false;
-  refetchOnWindowFocus?: boolean;
-  staleTime?: number;
-  retry?: number | boolean;
-  /** Keep previous data while refetching (default: true) */
-  keepPreviousData?: boolean;
-  /** Format price fields (entryPrice, markPrice, liquidationPrice) using priceDecimals (default: false) */
-  formatPrices?: boolean;
-}
+// Re-export types with provider-specific names for backwards compatibility
+export type UsePacificaPositionsConfig = ProviderHookConfig;
+export type UsePacificaPositionsOptions = ProviderHookOptions;
+export type UsePacificaPositionsResult = ProviderHookResult<PacificaPositionWithContext>;
 
-export interface UsePacificaPositionsOptions extends UsePacificaPositionsConfig {
-  wallets: string | string[];
-}
-
-export interface UsePacificaPositionsResult {
-  /** Raw positions from Pacifica API (note: enriched with context) */
-  raw: PacificaPosition[];
-  /** Normalized positions */
-  positions: NormalizedPosition[];
-  isLoading: boolean;
-  isFetching: boolean;
-  isError: boolean;
-  error: Error | null;
-  refetch: () => void;
-}
-
-export const usePacificaPositions = (
-  options: UsePacificaPositionsOptions
-): UsePacificaPositionsResult => {
-  const {
-    wallets,
-    enabled = true,
-    refetchInterval,
-    refetchOnWindowFocus = false,
-    staleTime = 30_000,
-    retry = 2,
-    keepPreviousData = true,
-    formatPrices = false,
-  } = options;
-
-  const walletsArray = useMemo(
-    () => (Array.isArray(wallets) ? wallets : [wallets]),
-    [wallets]
-  );
-
-  const query = useQuery({
-    queryKey: ['pacifica', 'positions', ...walletsArray.sort()],
-    queryFn: async () => {
-      const results = await Promise.all(
-        walletsArray.map(async (wallet) => {
-          const raw = await pacificaProvider.fetchPositions(wallet);
-          const normalized = raw.map((r) =>
-            pacificaProvider.normalizePosition(r, wallet)
-          );
-          return { raw, normalized };
-        })
-      );
-
-      return {
-        raw: results.flatMap((r) => r.raw),
-        normalized: results.flatMap((r) => r.normalized),
-      };
-    },
-    enabled,
-    refetchInterval,
-    refetchOnWindowFocus,
-    staleTime,
-    retry,
-    placeholderData: keepPreviousData ? (prev) => prev : undefined,
-  });
-
-  const positions = useMemo(() => {
-    const normalized = query.data?.normalized ?? [];
-    return formatPrices ? normalized.map(formatPositionPrices) : normalized;
-  }, [query.data?.normalized, formatPrices]);
-
-  return {
-    raw: query.data?.raw ?? [],
-    positions,
-    isLoading: query.isLoading,
-    isFetching: query.isFetching,
-    isError: query.isError,
-    error: query.error,
-    refetch: query.refetch,
-  };
-};
+/**
+ * Fetch and normalize Pacifica perpetual positions
+ *
+ * @example
+ * ```tsx
+ * const { positions, isLoading, error } = usePacificaPositions({
+ *   wallets: 'solana-wallet-address...',
+ *   formatPrices: true,
+ *   refetchInterval: 30000,
+ * });
+ * ```
+ */
+export const usePacificaPositions = createProviderHook(pacificaProvider);
