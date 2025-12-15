@@ -61,3 +61,27 @@ export interface LighterOrderBookDetails {
 export interface LighterOrderBookDetailsResponse {
   order_book: LighterOrderBookDetails;
 }
+
+/** Market metadata from orderBooks endpoint */
+export interface LighterMarketMeta {
+  symbol: string;
+  market_id: number;
+  market_type: string;
+  base_asset_id: number;
+  quote_asset_id: number;
+  status: string;
+  taker_fee: string;
+  maker_fee: string;
+  liquidation_fee: string;
+  min_base_amount: string;
+  min_quote_amount: string;
+  order_quote_limit: string;
+  supported_size_decimals: number;
+  supported_price_decimals: number;
+  supported_quote_decimals: number;
+}
+
+export interface LighterOrderBooksResponse {
+  code: number;
+  order_books: LighterMarketMeta[];
+}

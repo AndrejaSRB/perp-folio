@@ -7,6 +7,10 @@ export type {
 
 // HyperLiquid raw types
 export type {
+  HyperliquidPerpDex,
+  HyperliquidAssetMeta,
+  HyperliquidAssetCtx,
+  HyperliquidMetaAndAssetCtxs,
   HyperliquidLeverage,
   HyperliquidCumFunding,
   HyperliquidPositionData,
@@ -22,6 +26,8 @@ export type {
   LighterAccountsResponse,
   LighterOrderBookDetails,
   LighterOrderBookDetailsResponse,
+  LighterMarketMeta,
+  LighterOrderBooksResponse,
 } from './lighter';
 
 // Pacifica raw types

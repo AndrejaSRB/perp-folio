@@ -3,17 +3,27 @@
 // Docs: https://docs.pacifica.fi/api-documentation/api/rest-api
 
 export interface PacificaPosition {
+  /** Trading pair identifier */
   symbol: string;
-  side: string;
+  /** Position direction: 'bid' (long) or 'ask' (short) */
+  side: "bid" | "ask";
+  /** Position size */
   amount: string;
+  /** Entry price (VWAP if position opened by multiple trades) */
   entry_price: string;
+  /** Isolated margin allocation (isolated positions only) */
   margin: string;
+  /** Cumulative funding since position opening */
   funding: string;
+  /** Isolated margin mode status */
   isolated: boolean;
+  /** Liquidation price for this position */
+  liquidation_price: string | null;
+  /** Millisecond timestamp of position creation */
   created_at: number;
+  /** Millisecond timestamp of last update */
   updated_at: number;
 }
-
 export interface PacificaPositionsResponse {
   success: boolean;
   data: PacificaPosition[];

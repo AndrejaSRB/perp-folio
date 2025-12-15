@@ -15,6 +15,8 @@ export interface NormalizedPosition {
   side: 'long' | 'short';
   /** Position size (absolute value) */
   size: string;
+  /** Position value in USD (size * markPrice) */
+  sizeUsd: string | null;
   /** Entry price */
   entryPrice: string;
   /** Current mark price */
@@ -23,6 +25,8 @@ export interface NormalizedPosition {
   unrealizedPnl: string;
   /** Realized profit/loss */
   realizedPnl: string | null;
+  /** Return on Investment percentage (unrealizedPnl / margin * 100) */
+  roi: string | null;
   /** Current leverage */
   leverage: number;
   /** Margin mode */
@@ -37,4 +41,8 @@ export interface NormalizedPosition {
   fundingAccrued: string | null;
   /** Timestamp of position data */
   timestamp: number;
+  /** Size decimals for formatting (from market metadata) */
+  sizeDecimals: number;
+  /** Price decimals for formatting (from market metadata) */
+  priceDecimals: number;
 }

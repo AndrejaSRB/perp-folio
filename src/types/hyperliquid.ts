@@ -1,6 +1,46 @@
 // HyperLiquid API Response Types
 // Docs: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint
 
+/** Perp DEX info from perpDexs endpoint */
+export interface HyperliquidPerpDex {
+  name: string;
+  fullName: string;
+  deployer: string;
+  oracleUpdater: string | null;
+  feeRecipient: string;
+  assetToStreamingOiCap: [string, string][];
+}
+
+/** Asset metadata from metaAndAssetCtxs endpoint */
+export interface HyperliquidAssetMeta {
+  name: string;
+  szDecimals: number;
+  maxLeverage: number;
+  marginTableId: number;
+  onlyIsolated?: boolean;
+  isDelisted?: boolean;
+  marginMode?: string;
+}
+
+/** Asset context (current state) from metaAndAssetCtxs endpoint */
+export interface HyperliquidAssetCtx {
+  funding: string;
+  openInterest: string;
+  prevDayPx: string;
+  dayNtlVlm: string;
+  premium: string;
+  oraclePx: string;
+  markPx: string;
+  midPx: string;
+  impactPxs: [string, string];
+}
+
+/** Response from metaAndAssetCtxs endpoint */
+export interface HyperliquidMetaAndAssetCtxs {
+  universe: HyperliquidAssetMeta[];
+  assetCtxs?: HyperliquidAssetCtx[];
+}
+
 export interface HyperliquidLeverage {
   rawUsd: string;
   type: 'isolated' | 'cross';
@@ -18,10 +58,13 @@ export interface HyperliquidPositionData {
   cumFunding: HyperliquidCumFunding;
   entryPx: string;
   leverage: HyperliquidLeverage;
-  liquidationPx: string | null;
+  /** Liquidation price */
+  liquidationPx: string;
   marginUsed: string;
   maxLeverage: number;
+  /** Position value in USD */
   positionValue: string;
+  /** Return on equity (ROI) as decimal (e.g., 0.05 = 5%) */
   returnOnEquity: string;
   /** Signed position size: positive = long, negative = short */
   szi: string;

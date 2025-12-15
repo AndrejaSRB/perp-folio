@@ -34,13 +34,41 @@ export const solanaProviders: ProviderId[] = getProvidersByChain('solana');
 
 // Re-export types and individual providers
 export type { DexProvider, ProviderRegistry } from './types';
-export { hyperliquidProvider, fetchClearinghouseState } from './hyperliquid';
-export { lighterProvider, fetchAccount } from './lighter';
+
+// HyperLiquid exports
+export {
+  hyperliquidProvider,
+  fetchClearinghouseState,
+  fetchPerpDexs,
+  fetchMetaAndAssetCtxs,
+  buildSzDecimalsMap,
+  buildAssetDataMap,
+  getDexNames,
+  clearHyperliquidCache,
+  type HyperliquidPositionWithMeta,
+  type HyperliquidAssetData,
+} from './hyperliquid';
+
+// Lighter exports
+export {
+  lighterProvider,
+  fetchAccount,
+  fetchOrderBooks,
+  fetchOrderBookDetails,
+  fetchMarkPrices as fetchLighterMarkPrices,
+  buildDecimalsMap as buildLighterDecimalsMap,
+  clearLighterCache,
+  type LighterPositionWithMeta,
+} from './lighter';
+
+// Pacifica exports
 export {
   pacificaProvider,
   fetchPositions as fetchPacificaPositions,
   fetchAccountSettings as fetchPacificaAccountSettings,
   fetchMarkets as fetchPacificaMarkets,
   fetchPrices as fetchPacificaPrices,
-  clearMarketsCache as clearPacificaMarketsCache,
+  buildDecimalsMap as buildPacificaDecimalsMap,
+  clearPacificaCache,
+  type PacificaPositionWithContext,
 } from './pacifica';

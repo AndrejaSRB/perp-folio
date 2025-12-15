@@ -14,6 +14,10 @@ export type {
 
 // HyperLiquid raw types
 export type {
+  HyperliquidPerpDex,
+  HyperliquidAssetMeta,
+  HyperliquidAssetCtx,
+  HyperliquidMetaAndAssetCtxs,
   HyperliquidLeverage,
   HyperliquidCumFunding,
   HyperliquidPositionData,
@@ -29,6 +33,8 @@ export type {
   LighterAccountsResponse,
   LighterOrderBookDetails,
   LighterOrderBookDetailsResponse,
+  LighterMarketMeta,
+  LighterOrderBooksResponse,
 } from './types/lighter';
 
 // Pacifica raw types
@@ -88,16 +94,40 @@ export {
   type ProviderRegistry,
 } from './providers';
 
-// Individual providers (for advanced use)
-export { hyperliquidProvider, fetchClearinghouseState } from './providers/hyperliquid';
-export { lighterProvider, fetchAccount as fetchLighterAccount } from './providers/lighter';
+// HyperLiquid exports (for advanced use)
+export {
+  hyperliquidProvider,
+  fetchClearinghouseState,
+  fetchPerpDexs,
+  fetchMetaAndAssetCtxs,
+  buildSzDecimalsMap,
+  buildAssetDataMap,
+  getDexNames,
+  clearHyperliquidCache,
+  type HyperliquidAssetData,
+} from './providers';
+
+// Lighter exports (for advanced use)
+export {
+  lighterProvider,
+  fetchAccount as fetchLighterAccount,
+  fetchOrderBooks,
+  fetchOrderBookDetails,
+  fetchLighterMarkPrices,
+  buildLighterDecimalsMap,
+  clearLighterCache,
+} from './providers';
+
+// Pacifica exports (for advanced use)
 export {
   pacificaProvider,
   fetchPacificaPositions,
   fetchPacificaAccountSettings,
   fetchPacificaMarkets,
   fetchPacificaPrices,
-  clearPacificaMarketsCache,
+  buildPacificaDecimalsMap,
+  clearPacificaCache,
+  type PacificaPositionWithContext,
 } from './providers';
 
 // ============ NORMALIZERS ============
@@ -110,10 +140,40 @@ export {
 
 // ============ UTILS ============
 
+// Chain utilities
 export {
   isEvmWallet,
   isSolanaWallet,
+  normalizeSide,
   normalizeWalletsInput,
   type NormalizedWallets,
   type WalletsParam,
+} from './utils';
+
+// Formatting utilities
+export {
+  formatDecimals,
+  formatSize,
+  formatPrice,
+  formatPosition,
+  formatPositions,
+  formatPositionPrices,
+  formatPositionsPrices,
+  formatPositionSize,
+  formatPositionEntryPrice,
+  formatPositionMarkPrice,
+  formatPositionLiquidationPrice,
+  formatPositionUnrealizedPnl,
+  formatPositionRealizedPnl,
+  formatPositionMargin,
+  formatPnl,
+  type FormattedPosition,
+} from './utils';
+
+// Cache utilities
+export {
+  getCached,
+  clearCache,
+  clearCacheByPrefix,
+  clearAllCache,
 } from './utils';

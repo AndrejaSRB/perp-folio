@@ -6,6 +6,26 @@ export const isEvmWallet = (walletAddress: string): boolean => {
 };
 
 /**
+ * Normalize position side to 'long' | 'short'
+ * Handles various API formats: long/short, buy/sell, bid/ask
+ */
+export const normalizeSide = (side: string): 'long' | 'short' => {
+  const normalized = side.toLowerCase().trim();
+
+  if (['long', 'buy', 'bid'].includes(normalized)) {
+    return 'long';
+  }
+
+  if (['short', 'sell', 'ask'].includes(normalized)) {
+    return 'short';
+  }
+
+  // Default fallback - log warning in dev
+  console.warn(`Unknown position side: "${side}", defaulting to "long"`);
+  return 'long';
+};
+
+/**
  * Check if a wallet address is a Solana address (not starting with 0x)
  */
 export const isSolanaWallet = (walletAddress: string): boolean => {

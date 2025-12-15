@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { lighterProvider } from '../providers/lighter';
+import { formatPositionPrices } from '../utils/formatting';
 import type { LighterPosition, NormalizedPosition } from '../types';
 
 export interface UseLighterPositionsConfig {
@@ -9,6 +10,10 @@ export interface UseLighterPositionsConfig {
   refetchOnWindowFocus?: boolean;
   staleTime?: number;
   retry?: number | boolean;
+  /** Keep previous data while refetching (default: true) */
+  keepPreviousData?: boolean;
+  /** Format price fields (entryPrice, markPrice, liquidationPrice) using priceDecimals (default: false) */
+  formatPrices?: boolean;
 }
 
 export interface UseLighterPositionsOptions extends UseLighterPositionsConfig {
@@ -37,6 +42,8 @@ export const useLighterPositions = (
     refetchOnWindowFocus = false,
     staleTime = 30_000,
     retry = 2,
+    keepPreviousData = true,
+    formatPrices = false,
   } = options;
 
   const walletsArray = useMemo(
@@ -67,11 +74,17 @@ export const useLighterPositions = (
     refetchOnWindowFocus,
     staleTime,
     retry,
+    placeholderData: keepPreviousData ? (prev) => prev : undefined,
   });
+
+  const positions = useMemo(() => {
+    const normalized = query.data?.normalized ?? [];
+    return formatPrices ? normalized.map(formatPositionPrices) : normalized;
+  }, [query.data?.normalized, formatPrices]);
 
   return {
     raw: query.data?.raw ?? [],
-    positions: query.data?.normalized ?? [],
+    positions,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     isError: query.isError,

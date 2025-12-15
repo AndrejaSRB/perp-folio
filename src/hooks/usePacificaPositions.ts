@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { pacificaProvider } from '../providers/pacifica';
+import { formatPositionPrices } from '../utils/formatting';
 import type { PacificaPosition, NormalizedPosition } from '../types';
 
 export interface UsePacificaPositionsConfig {
@@ -9,6 +10,10 @@ export interface UsePacificaPositionsConfig {
   refetchOnWindowFocus?: boolean;
   staleTime?: number;
   retry?: number | boolean;
+  /** Keep previous data while refetching (default: true) */
+  keepPreviousData?: boolean;
+  /** Format price fields (entryPrice, markPrice, liquidationPrice) using priceDecimals (default: false) */
+  formatPrices?: boolean;
 }
 
 export interface UsePacificaPositionsOptions extends UsePacificaPositionsConfig {
@@ -37,6 +42,8 @@ export const usePacificaPositions = (
     refetchOnWindowFocus = false,
     staleTime = 30_000,
     retry = 2,
+    keepPreviousData = true,
+    formatPrices = false,
   } = options;
 
   const walletsArray = useMemo(
@@ -67,11 +74,17 @@ export const usePacificaPositions = (
     refetchOnWindowFocus,
     staleTime,
     retry,
+    placeholderData: keepPreviousData ? (prev) => prev : undefined,
   });
+
+  const positions = useMemo(() => {
+    const normalized = query.data?.normalized ?? [];
+    return formatPrices ? normalized.map(formatPositionPrices) : normalized;
+  }, [query.data?.normalized, formatPrices]);
 
   return {
     raw: query.data?.raw ?? [],
-    positions: query.data?.normalized ?? [],
+    positions,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     isError: query.isError,

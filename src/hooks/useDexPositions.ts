@@ -2,6 +2,7 @@ import { useQueries } from '@tanstack/react-query';
 import { useMemo, useCallback } from 'react';
 import { providers } from '../providers';
 import { normalizeWalletsInput, type WalletsParam } from '../utils/chains';
+import { formatPositionPrices } from '../utils/formatting';
 import type { NormalizedPosition, ProviderId } from '../types';
 
 export interface UseDexPositionsConfig {
@@ -10,6 +11,12 @@ export interface UseDexPositionsConfig {
   refetchOnWindowFocus?: boolean;
   staleTime?: number;
   retry?: number | boolean;
+  /** Keep previous data while refetching (default: true) */
+  keepPreviousData?: boolean;
+  /** Wait for all providers before returning data (default: false - stream as they arrive) */
+  waitForAll?: boolean;
+  /** Format price fields (entryPrice, markPrice, liquidationPrice) using priceDecimals (default: false) */
+  formatPrices?: boolean;
 }
 
 export interface UseDexPositionsOptions extends UseDexPositionsConfig {
@@ -65,6 +72,9 @@ export const useDexPositions = (
     refetchOnWindowFocus = false,
     staleTime = 30_000,
     retry = 2,
+    keepPreviousData = true,
+    waitForAll = false,
+    formatPrices = false,
   } = options;
 
   // Normalize wallet input to { evm: [], solana: [] }
@@ -118,15 +128,18 @@ export const useDexPositions = (
         refetchOnWindowFocus,
         staleTime,
         retry,
+        placeholderData: keepPreviousData
+          ? (prev: { providerId: ProviderId; positions: NormalizedPosition[] } | undefined) => prev
+          : undefined,
       };
     }),
   });
 
-  // Aggregate all positions
-  const positions = useMemo(
-    () => queries.flatMap((q) => q.data?.positions ?? []),
-    [queries]
-  );
+  // Aggregate all positions and optionally format prices
+  const positions = useMemo(() => {
+    const rawPositions = queries.flatMap((q) => q.data?.positions ?? []);
+    return formatPrices ? rawPositions.map(formatPositionPrices) : rawPositions;
+  }, [queries, formatPrices]);
 
   // Collect errors from failed queries
   const errors = useMemo(
@@ -178,9 +191,16 @@ export const useDexPositions = (
     [positions]
   );
 
+  // Loading state depends on waitForAll flag
+  // waitForAll=true: loading until ALL providers finish
+  // waitForAll=false: loading only on initial load (no data yet)
+  const isLoading = waitForAll
+    ? queries.some((q) => q.isLoading)
+    : queries.every((q) => q.isLoading) && positions.length === 0;
+
   return {
     positions,
-    isLoading: queries.some((q) => q.isLoading),
+    isLoading,
     isFetching: queries.some((q) => q.isFetching),
     isError: queries.some((q) => q.isError),
     errors,
