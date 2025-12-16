@@ -29,12 +29,16 @@ export interface DexProvider<TRaw = unknown> {
   name: string;
   /** Blockchain type this provider supports */
   chain: ChainType;
+  /** Whether this provider requires API credentials (vs wallet address) */
+  requiresCredentials?: boolean;
 
   /**
    * Fetch raw positions from the DEX API
    * Should return empty array if no positions or on 404
+   * @param address - Wallet address (ignored for credential-based providers)
+   * @param credentials - Optional API credentials for authenticated providers
    */
-  fetchPositions: (address: string) => Promise<TRaw[]>;
+  fetchPositions: (address: string, credentials?: unknown) => Promise<TRaw[]>;
 
   /**
    * Normalize a raw position to the standard NormalizedPosition format

@@ -13,6 +13,7 @@ export {
   type UseDexPositionsOptions,
   type UseDexPositionsResult,
   type ProviderError,
+  type DexCredentials,
 } from './useDexPositions';
 
 // Individual DEX hooks
@@ -36,3 +37,36 @@ export {
   type UsePacificaPositionsOptions,
   type UsePacificaPositionsResult,
 } from './usePacificaPositions';
+
+export {
+  useAsterPositions,
+  type UseAsterPositionsConfig,
+  type UseAsterPositionsOptions,
+  type UseAsterPositionsResult,
+} from './useAsterPositions';
+
+export {
+  useExtendedPositions,
+  type UseExtendedPositionsConfig,
+  type UseExtendedPositionsOptions,
+  type UseExtendedPositionsResult,
+} from './useExtendedPositions';
+
+// Portfolio hook
+export {
+  useDexPortfolio,
+  type UseDexPortfolioConfig,
+  type UseDexPortfolioOptions,
+  type UseDexPortfolioResult,
+} from './useDexPortfolio';
+
+// Aggregated portfolio hook
+export {
+  useAggregatedPortfolio,
+  type UseAggregatedPortfolioConfig,
+  type UseAggregatedPortfolioOptions,
+  type UseAggregatedPortfolioResult,
+  type AggregatedPortfolioData,
+  type DexAccountSummary,
+  type PerDexBreakdown,
+} from './useAggregatedPortfolio';

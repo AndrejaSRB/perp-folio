@@ -8,7 +8,11 @@
 import { hyperliquidProvider } from '../providers/hyperliquid';
 import { lighterProvider } from '../providers/lighter';
 import { pacificaProvider } from '../providers/pacifica';
+import { asterProvider } from '../providers/aster';
+import { extendedProvider } from '../providers/extended';
 
 export const normalizeHyperliquidPosition = hyperliquidProvider.normalizePosition;
 export const normalizeLighterPosition = lighterProvider.normalizePosition;
 export const normalizePacificaPosition = pacificaProvider.normalizePosition;
+export const normalizeAsterPosition = asterProvider.normalizePosition;
+export const normalizeExtendedPosition = extendedProvider.normalizePosition;

@@ -199,3 +199,77 @@ export const fetchClearinghouseState = async (
 export const clearHyperliquidCache = (): void => {
   clearCacheByPrefix('hl:');
 };
+
+// ============================================
+// Portfolio fetchers
+// ============================================
+
+import type { PortfolioTimeframe, PortfolioDataPoint } from '../../types/portfolio';
+
+/**
+ * Raw portfolio response from HyperLiquid
+ */
+interface HyperliquidPortfolioRaw {
+  accountValueHistory: [number, string][];
+  pnlHistory: [number, string][];
+  vlm: string;
+}
+
+/**
+ * Map our timeframe to HyperLiquid's perp timeframe keys
+ */
+const TIMEFRAME_TO_HL_KEY: Record<PortfolioTimeframe, string> = {
+  '1d': 'perpDay',
+  '7d': 'perpWeek',
+  '30d': 'perpMonth',
+  'all': 'perpAllTime',
+};
+
+/**
+ * Fetch portfolio history for a wallet
+ * Returns PnL and account value history for the specified timeframe
+ */
+export const fetchPortfolio = async (
+  address: string,
+  timeframe: PortfolioTimeframe
+): Promise<{ pnl: PortfolioDataPoint[]; accountValue: PortfolioDataPoint[] }> => {
+  const response = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'portfolio',
+      user: address,
+    }),
+  });
+
+  if (!response.ok) {
+    return { pnl: [], accountValue: [] };
+  }
+
+  const data: [string, HyperliquidPortfolioRaw][] = await response.json();
+
+  // Find the requested timeframe
+  const hlKey = TIMEFRAME_TO_HL_KEY[timeframe];
+  const entry = data.find(([key]) => key === hlKey);
+
+  if (!entry) {
+    return { pnl: [], accountValue: [] };
+  }
+
+  const [, portfolio] = entry;
+
+  // Transform to normalized format
+  const pnl: PortfolioDataPoint[] = (portfolio.pnlHistory ?? []).map(([timestamp, value]) => ({
+    timestamp,
+    value,
+  }));
+
+  const accountValue: PortfolioDataPoint[] = (portfolio.accountValueHistory ?? []).map(
+    ([timestamp, value]) => ({
+      timestamp,
+      value,
+    })
+  );
+
+  return { pnl, accountValue };
+};

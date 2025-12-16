@@ -1,52 +1,77 @@
-import type { NormalizedPosition } from '../../types';
-import type { LighterPositionWithMeta } from './types';
+import type { NormalizedPosition } from "../../types";
+import type { LighterPositionWithMeta } from "./types";
 
-/**
- * Normalize Lighter position to standard format
- */
+const toNum = (v: unknown): number => {
+  const n = typeof v === "string" ? Number(v) : typeof v === "number" ? v : NaN;
+  return Number.isFinite(n) ? n : 0;
+};
+
+const toStr = (n: number): string => (Number.isFinite(n) ? String(n) : "0");
+
 export const normalizePosition = (
   raw: LighterPositionWithMeta,
   wallet: string
 ): NormalizedPosition => {
-  // Calculate leverage from initial margin fraction
-  // leverage = 1 / initial_margin_fraction
-  const imf = parseFloat(raw.initial_margin_fraction);
-  const leverage = imf > 0 ? Math.round(1 / imf) : 1;
+  // IMF is a percent string in your payload: "5.00" = 5% => 20x
+  const imfPct = toNum(raw.initial_margin_fraction);
+  const leverage = imfPct > 0 ? Math.round(100 / imfPct) : 1;
 
-  const size = parseFloat(raw.position);
+  const size = toNum(raw.position);
+  const absSize = Math.abs(size);
 
-  // Calculate sizeUsd if we have mark price
+  const entry = toNum(raw.avg_entry_price);
+  const mark = raw._markPrice != null ? toNum(raw._markPrice) : 0;
+
+  // Prefer API-provided USD value when available
+  const posValueAbs = Math.abs(toNum(raw.position_value));
+
+  // sizeUsd: mark first, else api position_value, else entry fallback
   let sizeUsd: string | null = null;
-  if (raw._markPrice) {
-    const markPrice = parseFloat(raw._markPrice);
-    sizeUsd = (size * markPrice).toString();
+  if (mark > 0) sizeUsd = toStr(absSize * mark);
+  else if (posValueAbs > 0) sizeUsd = toStr(posValueAbs);
+  else if (entry > 0) sizeUsd = toStr(absSize * entry);
+
+  // Margin: allocated_margin is often 0 in cross mode.
+  // For cross, estimate margin from position value and IMF%
+  const allocatedMargin = toNum(raw.allocated_margin);
+
+  // Calculate margin: use allocated if available, otherwise estimate from position value
+  // For cross margin: margin = position_value / leverage = position_value * (IMF% / 100)
+  let margin: number;
+  if (allocatedMargin > 0) {
+    margin = allocatedMargin;
+  } else if (mark > 0 && imfPct > 0) {
+    // Use mark price for more accurate margin calculation
+    margin = (absSize * mark) * (imfPct / 100);
+  } else if (posValueAbs > 0 && imfPct > 0) {
+    margin = posValueAbs * (imfPct / 100);
+  } else {
+    margin = 0;
   }
 
-  // Calculate ROI: (unrealizedPnl / margin) * 100
-  let roi: string | null = null;
-  const margin = parseFloat(raw.allocated_margin);
-  const unrealizedPnl = parseFloat(raw.unrealized_pnl);
-  if (margin > 0) {
-    roi = ((unrealizedPnl / margin) * 100).toString();
-  }
+  const unrealizedPnl = toNum(raw.unrealized_pnl);
+  const roi = margin > 0 ? toStr((unrealizedPnl / margin) * 100) : null;
+
+  // IMPORTANT: avoid id collisions. If you don’t have account_index on the position, see section 2.
+  const accountKey = (raw as any)._accountIndex ?? "na";
 
   return {
-    id: `lighter-${wallet}-${raw.symbol}`,
-    provider: 'lighter',
+    id: `lighter-${wallet}-${accountKey}-${raw.symbol}`,
+    provider: "lighter",
     wallet,
     symbol: raw.symbol,
-    side: raw.sign === 1 ? 'long' : 'short',
+    side: raw.sign === 1 ? "long" : "short",
     size: raw.position,
     sizeUsd,
     entryPrice: raw.avg_entry_price,
-    markPrice: raw._markPrice,
+    markPrice: raw._markPrice ?? null,
     unrealizedPnl: raw.unrealized_pnl,
     realizedPnl: raw.realized_pnl,
     roi,
     leverage,
-    leverageType: raw.margin_mode === 1 ? 'isolated' : 'cross',
+    leverageType: raw.margin_mode === 1 ? "isolated" : "cross",
     liquidationPrice: raw.liquidation_price,
-    margin: raw.allocated_margin,
+    margin: toStr(margin),
     maxLeverage: null,
     fundingAccrued: raw.total_funding_paid_out ?? null,
     timestamp: Date.now(),

@@ -2,6 +2,23 @@
 // Base URL: https://mainnet.zklighter.elliot.ai
 // Docs: https://apidocs.lighter.xyz
 
+// ============================================
+// Credentials
+// ============================================
+
+/**
+ * Lighter API credentials (read-only token)
+ * Used for authenticated endpoints: /account, /orders, /positions, /fills, /transfers
+ */
+export interface LighterCredentials {
+  /** Read-only API token (format: "ro:YOUR_READ_TOKEN") */
+  readToken: string;
+}
+
+// ============================================
+// Raw API Response Types
+// ============================================
+
 export interface LighterPosition {
   market_id: number;
   symbol: string;
@@ -50,16 +67,23 @@ export interface LighterAccountsResponse {
 
 export interface LighterOrderBookDetails {
   symbol: string;
-  mark_price: string;
-  index_price: string;
-  funding_rate: string;
-  next_funding_time: number;
-  open_interest: string;
-  volume_24h: string;
+  market_id: number;
+  market_type: string;
+  status: string;
+  last_trade_price: number;
+  open_interest: number;
+  daily_base_token_volume: number;
+  daily_quote_token_volume: number;
+  daily_price_low: number;
+  daily_price_high: number;
+  daily_price_change: number;
+  supported_size_decimals: number;
+  supported_price_decimals: number;
 }
 
 export interface LighterOrderBookDetailsResponse {
-  order_book: LighterOrderBookDetails;
+  code: number;
+  order_book_details: LighterOrderBookDetails[];
 }
 
 /** Market metadata from orderBooks endpoint */

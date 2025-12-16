@@ -52,5 +52,6 @@ export {
   buildSzDecimalsMap,
   fetchClearinghouseState,
   clearHyperliquidCache,
+  fetchPortfolio,
 } from './api';
 export { normalizePosition, calculatePriceDecimals } from './normalizer';

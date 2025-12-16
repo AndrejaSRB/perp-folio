@@ -144,3 +144,71 @@ export const fetchPrices = async (): Promise<PacificaPrice[]> => {
 export const clearPacificaCache = (): void => {
   clearCacheByPrefix('pacifica:');
 };
+
+// ============================================
+// Portfolio fetchers
+// ============================================
+
+import type { PortfolioTimeframe, PortfolioDataPoint } from '../../types/portfolio';
+
+/**
+ * Raw portfolio response from Pacifica
+ */
+interface PacificaPortfolioEntry {
+  account_equity: string;
+  pnl: string;
+  timestamp: number;
+}
+
+interface PacificaPortfolioResponse {
+  success: boolean;
+  data: PacificaPortfolioEntry[];
+  error: string | null;
+}
+
+/**
+ * Map our timeframe to Pacifica's time_range param
+ */
+const TIMEFRAME_TO_PACIFICA: Record<PortfolioTimeframe, string> = {
+  '1d': '1d',
+  '7d': '7d',
+  '30d': '30d',
+  'all': 'all',
+};
+
+/**
+ * Fetch portfolio history for a wallet
+ * Returns PnL and account value (equity) history for the specified timeframe
+ */
+export const fetchPortfolio = async (
+  address: string,
+  timeframe: PortfolioTimeframe
+): Promise<{ pnl: PortfolioDataPoint[]; accountValue: PortfolioDataPoint[] }> => {
+  const timeRange = TIMEFRAME_TO_PACIFICA[timeframe];
+  const response = await fetch(
+    `${BASE_URL}/portfolio?account=${address}&time_range=${timeRange}`
+  );
+
+  if (!response.ok) {
+    return { pnl: [], accountValue: [] };
+  }
+
+  const data: PacificaPortfolioResponse = await response.json();
+
+  if (!data.success || !data.data) {
+    return { pnl: [], accountValue: [] };
+  }
+
+  // Transform to normalized format
+  const pnl: PortfolioDataPoint[] = data.data.map((entry) => ({
+    timestamp: entry.timestamp,
+    value: entry.pnl,
+  }));
+
+  const accountValue: PortfolioDataPoint[] = data.data.map((entry) => ({
+    timestamp: entry.timestamp,
+    value: entry.account_equity,
+  }));
+
+  return { pnl, accountValue };
+};

@@ -4,6 +4,7 @@
 
 import type { DexProvider } from '../types';
 import type { LighterPositionWithMeta } from './types';
+import type { LighterCredentials } from '../../types';
 import {
   fetchPositions,
   buildDecimalsMap,
@@ -19,15 +20,19 @@ import { isZeroPosition } from '../../utils/positionCalc';
 /**
  * Lighter provider with custom implementation
  * Handles symbol-based mark price fetching
+ * Supports optional read-only API token for authenticated access
  */
 export const lighterProvider: DexProvider<LighterPositionWithMeta> = {
   id: 'lighter',
   name: 'Lighter',
   chain: 'evm',
 
-  async fetchPositions(address: string): Promise<LighterPositionWithMeta[]> {
+  async fetchPositions(address: string, credentials?: unknown): Promise<LighterPositionWithMeta[]> {
+    // Cast credentials to LighterCredentials if provided
+    const lighterCredentials = credentials as LighterCredentials | undefined;
+
     // Step 1: Fetch raw positions (aggregated from all accounts)
-    const rawPositions = await fetchPositions(address);
+    const rawPositions = await fetchPositions(address, lighterCredentials);
 
     // Step 2: Filter out zero positions
     const nonZeroPositions = rawPositions.filter(
@@ -74,6 +79,9 @@ export {
   fetchPositions,
   buildMetadata,
   clearLighterCache,
+  fetchPnl,
+  fetchPortfolio,
+  fetchTotalPnl,
   type LighterMetadata,
 } from './api';
 export { normalizePosition } from './normalizer';

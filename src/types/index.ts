@@ -21,6 +21,7 @@ export type {
 
 // Lighter raw types
 export type {
+  LighterCredentials,
   LighterPosition,
   LighterAccount,
   LighterAccountsResponse,
@@ -41,3 +42,28 @@ export type {
   PacificaPrice,
   PacificaPricesResponse,
 } from './pacifica';
+
+// Aster raw types
+export type {
+  AsterCredentials,
+  AsterPositionRaw,
+  AsterSymbolInfoRaw,
+  AsterMarkPriceRaw,
+  AsterExchangeInfoResponse,
+} from './aster';
+
+// Extended raw types
+export type {
+  ExtendedCredentials,
+  ExtendedPositionRaw,
+  ExtendedMarketRaw,
+  ExtendedApiResponse,
+} from './extended';
+
+// Portfolio types
+export type {
+  PortfolioTimeframe,
+  PortfolioDataPoint,
+  WalletPortfolio,
+  PortfolioProviderId,
+} from './portfolio';

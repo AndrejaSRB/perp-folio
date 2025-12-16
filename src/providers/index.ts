@@ -3,6 +3,8 @@ import type { DexProvider, ProviderRegistry } from './types';
 import { hyperliquidProvider } from './hyperliquid';
 import { lighterProvider } from './lighter';
 import { pacificaProvider } from './pacifica';
+import { asterProvider } from './aster';
+import { extendedProvider } from './extended';
 
 /**
  * Registry of all available DEX providers
@@ -11,6 +13,8 @@ export const providers: ProviderRegistry = {
   hyperliquid: hyperliquidProvider,
   lighter: lighterProvider,
   pacifica: pacificaProvider,
+  aster: asterProvider,
+  extended: extendedProvider,
 };
 
 /**
@@ -69,6 +73,9 @@ export {
   buildDecimalsMap as buildLighterDecimalsMap,
   buildMetadata as buildLighterMetadata,
   clearLighterCache,
+  fetchPnl as fetchLighterPnl,
+  fetchPortfolio as fetchLighterPortfolio,
+  fetchTotalPnl as fetchLighterTotalPnl,
   type LighterPositionWithMeta,
   type LighterMetadata,
 } from './lighter';
@@ -88,3 +95,25 @@ export {
   calculateRoi as calculatePacificaRoi,
   type PacificaPositionWithContext,
 } from './pacifica';
+
+// Aster exports
+export {
+  asterProvider,
+  fetchExchangeInfo as fetchAsterExchangeInfo,
+  fetchPositions as fetchAsterPositions,
+  buildDecimalsMap as buildAsterDecimalsMap,
+  clearAsterCache,
+  hmacSha256,
+  type AsterPositionWithMeta,
+} from './aster';
+
+// Extended exports
+export {
+  extendedProvider,
+  fetchMarkets as fetchExtendedMarkets,
+  fetchPositions as fetchExtendedPositions,
+  fetchBalance as fetchExtendedBalance,
+  buildDecimalsMap as buildExtendedDecimalsMap,
+  clearExtendedCache,
+  type ExtendedPositionWithMeta,
+} from './extended';

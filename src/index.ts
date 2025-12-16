@@ -28,6 +28,7 @@ export type {
 
 // Lighter raw types
 export type {
+  LighterCredentials,
   LighterPosition,
   LighterAccount,
   LighterAccountsResponse,
@@ -49,6 +50,34 @@ export type {
   PacificaPricesResponse,
 } from './types/pacifica';
 
+// Aster raw types
+export type {
+  AsterCredentials,
+  AsterPositionRaw,
+  AsterSymbolInfoRaw,
+  AsterMarkPriceRaw,
+  AsterExchangeInfoResponse,
+} from './types/aster';
+
+// Extended raw types
+export type {
+  ExtendedCredentials,
+  ExtendedPositionRaw,
+  ExtendedMarketRaw,
+  ExtendedApiResponse,
+  ExtendedBalanceRaw,
+} from './types/extended';
+
+// Portfolio types
+export type {
+  PortfolioTimeframe,
+  PortfolioDataPoint,
+  WalletPortfolio,
+  PortfolioProviderId,
+  LighterPnlDataPoint,
+  LighterPnlResponse,
+} from './types/portfolio';
+
 // ============ HOOKS ============
 
 // Hook factory - for creating custom provider hooks
@@ -66,6 +95,7 @@ export {
   type UseDexPositionsOptions,
   type UseDexPositionsResult,
   type ProviderError,
+  type DexCredentials,
 } from './hooks/useDexPositions';
 
 // Individual DEX hooks
@@ -89,6 +119,40 @@ export {
   type UsePacificaPositionsOptions,
   type UsePacificaPositionsResult,
 } from './hooks/usePacificaPositions';
+
+export {
+  useAsterPositions,
+  type UseAsterPositionsConfig,
+  type UseAsterPositionsOptions,
+  type UseAsterPositionsResult,
+} from './hooks/useAsterPositions';
+
+export {
+  useExtendedPositions,
+  type UseExtendedPositionsConfig,
+  type UseExtendedPositionsOptions,
+  type UseExtendedPositionsResult,
+} from './hooks/useExtendedPositions';
+
+// Portfolio hook (PnL and Account Value history)
+export {
+  useDexPortfolio,
+  type UseDexPortfolioConfig,
+  type UseDexPortfolioOptions,
+  type UseDexPortfolioResult,
+} from './hooks/useDexPortfolio';
+
+// Aggregated portfolio hook (totals across all DEXes)
+export {
+  useAggregatedPortfolio,
+  type UseAggregatedPortfolioConfig,
+  type UseAggregatedPortfolioOptions,
+  type UseAggregatedPortfolioResult,
+  type AggregatedPortfolioData,
+  type DexAccountSummary,
+  type PerDexBreakdown,
+  type PerDexLoadingStates,
+} from './hooks/useAggregatedPortfolio';
 
 // ============ PROVIDERS ============
 
@@ -136,6 +200,9 @@ export {
   buildLighterDecimalsMap,
   buildLighterMetadata,
   clearLighterCache,
+  fetchLighterPnl,
+  fetchLighterPortfolio,
+  fetchLighterTotalPnl,
   type LighterPositionWithMeta,
   type LighterMetadata,
 } from './providers';
@@ -156,12 +223,36 @@ export {
   type PacificaPositionWithContext,
 } from './providers';
 
+// Aster exports (for advanced use)
+export {
+  asterProvider,
+  fetchAsterExchangeInfo,
+  fetchAsterPositions,
+  buildAsterDecimalsMap,
+  clearAsterCache,
+  hmacSha256,
+  type AsterPositionWithMeta,
+} from './providers';
+
+// Extended exports (for advanced use)
+export {
+  extendedProvider,
+  fetchExtendedMarkets,
+  fetchExtendedPositions,
+  fetchExtendedBalance,
+  buildExtendedDecimalsMap,
+  clearExtendedCache,
+  type ExtendedPositionWithMeta,
+} from './providers';
+
 // ============ NORMALIZERS ============
 
 export {
   normalizeHyperliquidPosition,
   normalizeLighterPosition,
   normalizePacificaPosition,
+  normalizeAsterPosition,
+  normalizeExtendedPosition,
 } from './normalizers';
 
 // ============ UTILS ============

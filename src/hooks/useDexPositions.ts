@@ -3,7 +3,21 @@ import { useMemo, useCallback } from 'react';
 import { providers } from '../providers';
 import { normalizeWalletsInput, type WalletsParam } from '../utils/chains';
 import { formatPositionPrices } from '../utils/formatting';
-import type { NormalizedPosition, ProviderId } from '../types';
+import type { NormalizedPosition, ProviderId, AsterCredentials, ExtendedCredentials, LighterCredentials } from '../types';
+
+/**
+ * Credentials for authenticated DEX providers
+ */
+export interface DexCredentials {
+  /** Aster DEX API key */
+  asterApiKey?: string;
+  /** Aster DEX API secret */
+  asterApiSecret?: string;
+  /** Extended DEX API key */
+  extendedApiKey?: string;
+  /** Lighter read-only API token (format: "ro:YOUR_READ_TOKEN") */
+  lighterReadToken?: string;
+}
 
 export interface UseDexPositionsConfig {
   enabled?: boolean;
@@ -26,6 +40,8 @@ export interface UseDexPositionsOptions extends UseDexPositionsConfig {
   providers?: ProviderId[];
   /** Exclude these providers (blacklist) */
   exclude?: ProviderId[];
+  /** Credentials for authenticated providers (e.g., Aster) */
+  credentials?: DexCredentials;
 }
 
 export interface ProviderError {
@@ -67,6 +83,7 @@ export const useDexPositions = (
     wallets,
     providers: includeProviders,
     exclude = [],
+    credentials,
     enabled = true,
     refetchInterval,
     refetchOnWindowFocus = false,
@@ -77,13 +94,44 @@ export const useDexPositions = (
     formatPrices = false,
   } = options;
 
+  // Build Aster credentials if provided
+  const asterCredentials: AsterCredentials | undefined = useMemo(() => {
+    if (credentials?.asterApiKey && credentials?.asterApiSecret) {
+      return {
+        apiKey: credentials.asterApiKey,
+        apiSecret: credentials.asterApiSecret,
+      };
+    }
+    return undefined;
+  }, [credentials?.asterApiKey, credentials?.asterApiSecret]);
+
+  // Build Extended credentials if provided
+  const extendedCredentials: ExtendedCredentials | undefined = useMemo(() => {
+    if (credentials?.extendedApiKey) {
+      return {
+        apiKey: credentials.extendedApiKey,
+      };
+    }
+    return undefined;
+  }, [credentials?.extendedApiKey]);
+
+  // Build Lighter credentials if provided
+  const lighterCredentials: LighterCredentials | undefined = useMemo(() => {
+    if (credentials?.lighterReadToken) {
+      return {
+        readToken: credentials.lighterReadToken,
+      };
+    }
+    return undefined;
+  }, [credentials?.lighterReadToken]);
+
   // Normalize wallet input to { evm: [], solana: [] }
   const normalizedWallets = useMemo(
     () => normalizeWalletsInput(wallets),
     [wallets]
   );
 
-  // Determine which providers to query based on wallet types and include/exclude
+  // Determine which providers to query based on wallet types, credentials, and include/exclude
   const activeProviders = useMemo(() => {
     const allProviderIds = Object.keys(providers) as ProviderId[];
     let filtered = includeProviders ?? allProviderIds;
@@ -91,33 +139,91 @@ export const useDexPositions = (
     // Remove excluded providers
     filtered = filtered.filter((id) => !exclude.includes(id));
 
-    // Only include providers where we have wallets for their chain
+    // Only include providers where we have wallets for their chain OR credentials for authenticated providers
     return filtered.filter((id) => {
       const provider = providers[id];
+
+      // For credential-based providers, check if credentials are available
+      if (provider.requiresCredentials) {
+        if (id === 'aster') {
+          return asterCredentials !== undefined;
+        }
+        if (id === 'extended') {
+          return extendedCredentials !== undefined;
+        }
+        // Add other credential-based providers here as needed
+        return false;
+      }
+
+      // For wallet-based providers, check if we have wallets for their chain
       if (provider.chain === 'evm') return normalizedWallets.evm.length > 0;
       if (provider.chain === 'solana') return normalizedWallets.solana.length > 0;
       return false;
     });
-  }, [includeProviders, exclude, normalizedWallets]);
+  }, [includeProviders, exclude, normalizedWallets, asterCredentials, extendedCredentials]);
 
   // Create queries for each active provider
   const queries = useQueries({
     queries: activeProviders.map((providerId) => {
       const provider = providers[providerId];
+
+      // Handle credential-based providers (like Aster, Extended)
+      if (provider.requiresCredentials) {
+        let providerCredentials: unknown;
+        let walletId: string;
+
+        if (providerId === 'aster') {
+          providerCredentials = asterCredentials;
+          walletId = asterCredentials?.apiKey ?? 'unknown';
+        } else if (providerId === 'extended') {
+          providerCredentials = extendedCredentials;
+          walletId = extendedCredentials?.apiKey?.slice(0, 8) ?? 'unknown';
+        } else {
+          providerCredentials = undefined;
+          walletId = 'unknown';
+        }
+
+        return {
+          queryKey: ['dex-positions', providerId, walletId],
+          queryFn: async (): Promise<{
+            providerId: ProviderId;
+            positions: NormalizedPosition[];
+          }> => {
+            const raw = await provider.fetchPositions('', providerCredentials);
+            const positions = raw.map((r) =>
+              provider.normalizePosition(r, walletId)
+            );
+            return { providerId, positions };
+          },
+          enabled,
+          refetchInterval,
+          refetchOnWindowFocus,
+          staleTime,
+          retry,
+          placeholderData: keepPreviousData
+            ? (prev: { providerId: ProviderId; positions: NormalizedPosition[] } | undefined) => prev
+            : undefined,
+        };
+      }
+
+      // Handle wallet-based providers (HyperLiquid, Lighter, Pacifica)
       const relevantWallets =
         provider.chain === 'evm'
           ? normalizedWallets.evm
           : normalizedWallets.solana;
 
+      // Get credentials for this provider if available
+      const providerCredentials = providerId === 'lighter' ? lighterCredentials : undefined;
+
       return {
-        queryKey: ['dex-positions', providerId, ...relevantWallets.sort()],
+        queryKey: ['dex-positions', providerId, ...relevantWallets.sort(), providerCredentials?.readToken ?? ''],
         queryFn: async (): Promise<{
           providerId: ProviderId;
           positions: NormalizedPosition[];
         }> => {
           const results = await Promise.all(
             relevantWallets.map(async (wallet) => {
-              const raw = await provider.fetchPositions(wallet);
+              const raw = await provider.fetchPositions(wallet, providerCredentials);
               return raw.map((r) => provider.normalizePosition(r, wallet));
             })
           );

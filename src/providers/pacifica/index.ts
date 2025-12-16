@@ -80,6 +80,7 @@ export {
   fetchPrices,
   buildDecimalsMap,
   clearPacificaCache,
+  fetchPortfolio,
 } from './api';
 export { normalizePosition } from './normalizer';
 export { calculatePnl, calculatePositionValue, calculateMarginUsed, calculateRoi } from './utils';
