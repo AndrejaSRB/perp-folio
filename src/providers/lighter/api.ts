@@ -258,7 +258,24 @@ export const fetchPnl = async (
     return { code: response.status, resolution, pnl: [] };
   }
 
-  return response.json();
+  const data: LighterPnlResponse = await response.json();
+
+  // Debug: log raw API response
+  console.log(`[Lighter API] fetchPnl for account ${accountIndex}, timeframe ${timeframe}`);
+  console.log(`[Lighter API] startTimestamp: ${startTimestamp} (${new Date(startTimestamp * 1000).toISOString()})`);
+  console.log(`[Lighter API] raw pnl points: ${data.pnl.length}`);
+  if (data.pnl.length > 0) {
+    console.log(`[Lighter API] first raw point:`, data.pnl[0]);
+    console.log(`[Lighter API] last raw point:`, data.pnl[data.pnl.length - 1]);
+  }
+
+  // Filter data to only include points within the requested timeframe
+  // The API may return data outside the requested range
+  const filteredPnl = data.pnl.filter((point) => point.timestamp >= startTimestamp);
+
+  console.log(`[Lighter API] filtered pnl points: ${filteredPnl.length}`);
+
+  return { ...data, pnl: filteredPnl };
 };
 
 /**
@@ -312,7 +329,8 @@ export const fetchPortfolio = async (
     const data = pnlByTimestamp.get(timestamp)!;
     // Total PnL = trade_pnl + pool_pnl
     const totalPnl = data.tradePnl + data.poolPnl;
-    return { timestamp, value: totalPnl.toFixed(2) };
+    // Convert seconds to milliseconds for consistency with other providers
+    return { timestamp: timestamp * 1000, value: totalPnl.toFixed(2) };
   });
 
   // Account value = inflow - outflow + total_pnl
@@ -320,8 +338,17 @@ export const fetchPortfolio = async (
     const data = pnlByTimestamp.get(timestamp)!;
     const totalPnl = data.tradePnl + data.poolPnl;
     const value = data.inflow - data.outflow + totalPnl;
-    return { timestamp, value: value.toFixed(2) };
+    // Convert seconds to milliseconds for consistency with other providers
+    return { timestamp: timestamp * 1000, value: value.toFixed(2) };
   });
+
+  // Filter out empty/zero data - if all values are zero, return empty arrays
+  const hasNonZeroPnl = pnl.some((p) => parseFloat(p.value) !== 0);
+  const hasNonZeroAccountValue = accountValue.some((p) => parseFloat(p.value) !== 0);
+
+  if (!hasNonZeroPnl && !hasNonZeroAccountValue) {
+    return { pnl: [], accountValue: [] };
+  }
 
   return { pnl, accountValue };
 };

@@ -11,6 +11,7 @@ import { fetchTotalPnl as fetchLighterTotalPnl } from '../providers/lighter';
 import { fetchBalance as fetchExtendedBalance } from '../providers/extended';
 import { fetchVolume as fetchPacificaVolume, fetchTotalPnl as fetchPacificaTotalPnl } from '../providers/pacifica';
 import { normalizeWalletsInput, type WalletsParam } from '../utils/chains';
+import { useLighterVolumeWs } from './useLighterVolumeWs';
 import type { DexCredentials } from './useDexPositions';
 
 // ============================================
@@ -68,6 +69,8 @@ export interface UseAggregatedPortfolioConfig {
   staleTime?: number;
   /** Number of retry attempts (default: 2) */
   retry?: number | boolean;
+  /** Enable Lighter volume via WebSocket (requires @hypersignals/dex-ws) */
+  enableLighterWebSocket?: boolean;
 }
 
 /**
@@ -361,6 +364,7 @@ export function useAggregatedPortfolio(
     refetchOnWindowFocus = false,
     staleTime = 30_000,
     retry = 2,
+    enableLighterWebSocket = false,
   } = options;
 
   // Extract credentials
@@ -377,6 +381,13 @@ export function useAggregatedPortfolio(
     () => normalizeWalletsInput(wallets),
     [wallets]
   );
+
+  // Lighter volume via WebSocket (optional)
+  const lighterVolumeWs = useLighterVolumeWs({
+    wallets: normalizedWallets.evm,
+    readToken: lighterReadToken,
+    enabled: enabled && enableLighterWebSocket && normalizedWallets.evm.length > 0,
+  });
 
   // Determine active providers
   const activeProviders = useMemo(() => {
@@ -543,10 +554,15 @@ export function useAggregatedPortfolio(
       (pacificaSummary?.totalPnl ?? 0) +
       (extendedSummary?.totalPnl ?? 0);
 
-    // Total volume (currently only HyperLiquid provides this)
+    // Lighter volume from WebSocket (if enabled) or REST (0)
+    const lighterVolume = enableLighterWebSocket
+      ? lighterVolumeWs.totalVolume
+      : (lighterSummary?.totalVolume ?? 0);
+
+    // Total volume
     const totalVolume =
       (hlSummary?.totalVolume ?? 0) +
-      (lighterSummary?.totalVolume ?? 0) +
+      lighterVolume +
       (pacificaSummary?.totalVolume ?? 0) +
       (extendedSummary?.totalVolume ?? 0);
 
@@ -575,7 +591,7 @@ export function useAggregatedPortfolio(
       perDex.lighter = lighterSummary
         ? {
             accountBalance: lighterSummary.accountBalance,
-            totalVolume: lighterSummary.totalVolume,
+            totalVolume: lighterVolume,
             totalPnl: lighterSummary.totalPnl,
           }
         : null;
@@ -609,7 +625,7 @@ export function useAggregatedPortfolio(
       compositeLeverage,
       perDex,
     };
-  }, [positionQueries, accountQueries, activeProviders]);
+  }, [positionQueries, accountQueries, activeProviders, enableLighterWebSocket, lighterVolumeWs.totalVolume]);
 
   // Refetch all
   const refetch = useCallback(() => {
@@ -620,7 +636,8 @@ export function useAggregatedPortfolio(
   // Loading/error states
   const isLoading =
     positionQueries.some((q) => q.isLoading) ||
-    accountQueries.some((q) => q.isLoading);
+    accountQueries.some((q) => q.isLoading) ||
+    (enableLighterWebSocket && lighterVolumeWs.isLoading);
 
   const isFetching =
     positionQueries.some((q) => q.isFetching) ||

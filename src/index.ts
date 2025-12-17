@@ -154,6 +154,15 @@ export {
   type PerDexLoadingStates,
 } from './hooks/useAggregatedPortfolio';
 
+// Lighter volume WebSocket hook (requires @hypersignals/dex-ws)
+export {
+  useLighterVolumeWs,
+  type UseLighterVolumeWsConfig,
+  type UseLighterVolumeWsOptions,
+  type UseLighterVolumeWsResult,
+  type WalletVolume,
+} from './hooks/useLighterVolumeWs';
+
 // ============ PROVIDERS ============
 
 // Provider registry and utilities

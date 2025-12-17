@@ -155,13 +155,17 @@ export const clearPacificaCache = (): void => {
 interface PacificaVolumeResponse {
   success: boolean;
   data: {
-    volume: string;
+    volume_1d: string;
+    volume_7d: string;
+    volume_14d: string;
+    volume_30d: string;
+    volume_all_time: string;
   };
   error: string | null;
 }
 
 /**
- * Fetch total trading volume for a wallet
+ * Fetch total trading volume for a wallet (all-time)
  */
 export const fetchVolume = async (address: string): Promise<number> => {
   try {
@@ -177,7 +181,7 @@ export const fetchVolume = async (address: string): Promise<number> => {
       return 0;
     }
 
-    return parseFloat(data.data.volume ?? '0');
+    return parseFloat(data.data.volume_all_time ?? '0');
   } catch {
     return 0;
   }
@@ -275,6 +279,14 @@ export const fetchPortfolio = async (
     timestamp: entry.timestamp,
     value: entry.account_equity,
   }));
+
+  // Filter out empty/zero data - if all values are zero, return empty arrays
+  const hasNonZeroPnl = pnl.some((p) => parseFloat(p.value) !== 0);
+  const hasNonZeroAccountValue = accountValue.some((p) => parseFloat(p.value) !== 0);
+
+  if (!hasNonZeroPnl && !hasNonZeroAccountValue) {
+    return { pnl: [], accountValue: [] };
+  }
 
   return { pnl, accountValue };
 };

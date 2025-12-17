@@ -271,5 +271,13 @@ export const fetchPortfolio = async (
     })
   );
 
+  // Filter out empty/zero data - if all values are "0.0" or "0", return empty arrays
+  const hasNonZeroPnl = pnl.some((p) => parseFloat(p.value) !== 0);
+  const hasNonZeroAccountValue = accountValue.some((p) => parseFloat(p.value) !== 0);
+
+  if (!hasNonZeroPnl && !hasNonZeroAccountValue) {
+    return { pnl: [], accountValue: [] };
+  }
+
   return { pnl, accountValue };
 };
