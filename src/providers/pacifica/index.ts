@@ -78,6 +78,8 @@ export {
   fetchPositions,
   fetchAccountSettings,
   fetchPrices,
+  fetchVolume,
+  fetchTotalPnl,
   buildDecimalsMap,
   clearPacificaCache,
   fetchPortfolio,

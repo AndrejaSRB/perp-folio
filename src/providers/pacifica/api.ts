@@ -146,6 +146,72 @@ export const clearPacificaCache = (): void => {
 };
 
 // ============================================
+// Volume fetcher
+// ============================================
+
+/**
+ * Raw volume response from Pacifica
+ */
+interface PacificaVolumeResponse {
+  success: boolean;
+  data: {
+    volume: string;
+  };
+  error: string | null;
+}
+
+/**
+ * Fetch total trading volume for a wallet
+ */
+export const fetchVolume = async (address: string): Promise<number> => {
+  try {
+    const response = await fetch(`${BASE_URL}/portfolio/volume?account=${address}`);
+
+    if (!response.ok) {
+      return 0;
+    }
+
+    const data: PacificaVolumeResponse = await response.json();
+
+    if (!data.success || !data.data) {
+      return 0;
+    }
+
+    return parseFloat(data.data.volume ?? '0');
+  } catch {
+    return 0;
+  }
+};
+
+/**
+ * Fetch total PnL for a wallet (all-time)
+ * Uses portfolio endpoint with time_range=all
+ */
+export const fetchTotalPnl = async (address: string): Promise<number> => {
+  try {
+    const response = await fetch(
+      `${BASE_URL}/portfolio?account=${address}&time_range=all`
+    );
+
+    if (!response.ok) {
+      return 0;
+    }
+
+    const data = await response.json();
+
+    if (!data.success || !data.data || data.data.length === 0) {
+      return 0;
+    }
+
+    // Get latest entry (last in array) for most recent total PnL
+    const latest = data.data[data.data.length - 1];
+    return parseFloat(latest.pnl ?? '0');
+  } catch {
+    return 0;
+  }
+};
+
+// ============================================
 // Portfolio fetchers
 // ============================================
 

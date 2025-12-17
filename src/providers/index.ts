@@ -87,6 +87,8 @@ export {
   fetchAccountSettings as fetchPacificaAccountSettings,
   fetchMarkets as fetchPacificaMarkets,
   fetchPrices as fetchPacificaPrices,
+  fetchVolume as fetchPacificaVolume,
+  fetchTotalPnl as fetchPacificaTotalPnl,
   buildDecimalsMap as buildPacificaDecimalsMap,
   clearPacificaCache,
   calculatePnl as calculatePacificaPnl,

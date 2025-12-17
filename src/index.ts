@@ -214,6 +214,8 @@ export {
   fetchPacificaAccountSettings,
   fetchPacificaMarkets,
   fetchPacificaPrices,
+  fetchPacificaVolume,
+  fetchPacificaTotalPnl,
   buildPacificaDecimalsMap,
   clearPacificaCache,
   calculatePacificaPnl,

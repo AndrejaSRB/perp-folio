@@ -9,6 +9,7 @@ import type { ProviderId, NormalizedPosition, LighterCredentials, ExtendedCreden
 import { providers } from '../providers';
 import { fetchTotalPnl as fetchLighterTotalPnl } from '../providers/lighter';
 import { fetchBalance as fetchExtendedBalance } from '../providers/extended';
+import { fetchVolume as fetchPacificaVolume, fetchTotalPnl as fetchPacificaTotalPnl } from '../providers/pacifica';
 import { normalizeWalletsInput, type WalletsParam } from '../utils/chains';
 import type { DexCredentials } from './useDexPositions';
 
@@ -255,7 +256,7 @@ const fetchLighterAccountSummary = async (
 
 /**
  * Fetch Pacifica account summary
- * Uses portfolio endpoint to get latest account equity
+ * Uses portfolio endpoint for equity, volume endpoint for volume, and all-time PnL
  */
 const fetchPacificaAccountSummary = async (
   wallets: string[]
@@ -269,36 +270,34 @@ const fetchPacificaAccountSummary = async (
   const results = await Promise.all(
     wallets.map(async (wallet) => {
       try {
-        // Fetch portfolio to get latest account equity
-        const response = await fetch(
-          `${BASE_URL}/portfolio?account=${wallet}&time_range=1d`
-        );
+        // Fetch account equity (1d for latest), volume, and all-time PnL in parallel
+        const [portfolioResponse, volume, totalPnl] = await Promise.all([
+          fetch(`${BASE_URL}/portfolio?account=${wallet}&time_range=1d`),
+          fetchPacificaVolume(wallet),
+          fetchPacificaTotalPnl(wallet),
+        ]);
 
-        if (!response.ok) {
-          return { accountEquity: 0, totalPnl: 0 };
+        let accountEquity = 0;
+
+        if (portfolioResponse.ok) {
+          const data = await portfolioResponse.json();
+          if (data.success && data.data && data.data.length > 0) {
+            // Get latest entry (last in array)
+            const latest = data.data[data.data.length - 1];
+            accountEquity = parseFloat(latest.account_equity ?? '0');
+          }
         }
 
-        const data = await response.json();
-
-        if (!data.success || !data.data || data.data.length === 0) {
-          return { accountEquity: 0, totalPnl: 0 };
-        }
-
-        // Get latest entry (last in array)
-        const latest = data.data[data.data.length - 1];
-        const accountEquity = parseFloat(latest.account_equity ?? '0');
-        const totalPnl = parseFloat(latest.pnl ?? '0');
-
-        return { accountEquity, totalPnl };
+        return { accountEquity, volume, totalPnl };
       } catch {
-        return { accountEquity: 0, totalPnl: 0 };
+        return { accountEquity: 0, volume: 0, totalPnl: 0 };
       }
     })
   );
 
   return {
     accountBalance: results.reduce((sum, r) => sum + r.accountEquity, 0),
-    totalVolume: 0, // Volume not available from Pacifica API
+    totalVolume: results.reduce((sum, r) => sum + r.volume, 0),
     totalPnl: results.reduce((sum, r) => sum + r.totalPnl, 0),
   };
 };
