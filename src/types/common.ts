@@ -1,6 +1,6 @@
-export type ChainType = 'evm' | 'solana';
+export type ChainType = 'evm' | 'solana' | 'cosmos';
 
-export type ProviderId = 'hyperliquid' | 'lighter' | 'pacifica' | 'aster' | 'extended';
+export type ProviderId = 'hyperliquid' | 'lighter' | 'pacifica' | 'aster' | 'dydx';
 
 export interface NormalizedPosition {
   /** Unique identifier: `{provider}-{wallet}-{symbol}` */

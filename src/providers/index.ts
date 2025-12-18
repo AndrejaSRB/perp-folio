@@ -4,7 +4,7 @@ import { hyperliquidProvider } from './hyperliquid';
 import { lighterProvider } from './lighter';
 import { pacificaProvider } from './pacifica';
 import { asterProvider } from './aster';
-import { extendedProvider } from './extended';
+import { dydxProvider } from './dydx';
 
 /**
  * Registry of all available DEX providers
@@ -14,7 +14,7 @@ export const providers: ProviderRegistry = {
   lighter: lighterProvider,
   pacifica: pacificaProvider,
   aster: asterProvider,
-  extended: extendedProvider,
+  dydx: dydxProvider,
 };
 
 /**
@@ -58,6 +58,7 @@ export {
   getDexNames,
   clearHyperliquidCache,
   calculatePriceDecimals,
+  combineHyperliquidClearinghouseStates,
   type HyperliquidPositionWithMeta,
   type HyperliquidAssetData,
 } from './hyperliquid';
@@ -109,13 +110,19 @@ export {
   type AsterPositionWithMeta,
 } from './aster';
 
-// Extended exports
+// dYdX exports
 export {
-  extendedProvider,
-  fetchMarkets as fetchExtendedMarkets,
-  fetchPositions as fetchExtendedPositions,
-  fetchBalance as fetchExtendedBalance,
-  buildDecimalsMap as buildExtendedDecimalsMap,
-  clearExtendedCache,
-  type ExtendedPositionWithMeta,
-} from './extended';
+  dydxProvider,
+  fetchMarkets as fetchDydxMarkets,
+  fetchPositions as fetchDydxPositions,
+  fetchSubaccount as fetchDydxSubaccount,
+  fetchMarkPrices as fetchDydxMarkPrices,
+  buildDecimalsMap as buildDydxDecimalsMap,
+  buildMetadata as buildDydxMetadata,
+  clearDydxCache,
+  fetchHistoricalPnl as fetchDydxHistoricalPnl,
+  fetchPortfolio as fetchDydxPortfolio,
+  fetchTotalPnl as fetchDydxTotalPnl,
+  type DydxPositionWithMeta,
+  type DydxMetadata,
+} from './dydx';

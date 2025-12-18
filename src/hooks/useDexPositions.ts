@@ -3,7 +3,8 @@ import { useMemo, useCallback } from 'react';
 import { providers } from '../providers';
 import { normalizeWalletsInput, type WalletsParam } from '../utils/chains';
 import { formatPositionPrices } from '../utils/formatting';
-import type { NormalizedPosition, ProviderId, AsterCredentials, ExtendedCredentials, LighterCredentials } from '../types';
+import type { NormalizedPosition, ProviderId, AsterCredentials, LighterCredentials } from '../types';
+import { useHyperliquidPositionsWs } from './useHyperliquidPositionsWs';
 
 /**
  * Credentials for authenticated DEX providers
@@ -13,8 +14,6 @@ export interface DexCredentials {
   asterApiKey?: string;
   /** Aster DEX API secret */
   asterApiSecret?: string;
-  /** Extended DEX API key */
-  extendedApiKey?: string;
   /** Lighter read-only API token (format: "ro:YOUR_READ_TOKEN") */
   lighterReadToken?: string;
 }
@@ -31,6 +30,8 @@ export interface UseDexPositionsConfig {
   waitForAll?: boolean;
   /** Format price fields (entryPrice, markPrice, liquidationPrice) using priceDecimals (default: false) */
   formatPrices?: boolean;
+  /** Use WebSocket for Hyperliquid positions (requires @hypersignals/dex-ws) (default: false) */
+  enableHyperliquidWebSocket?: boolean;
 }
 
 export interface UseDexPositionsOptions extends UseDexPositionsConfig {
@@ -62,6 +63,8 @@ export interface UseDexPositionsResult {
   errors: ProviderError[];
   /** Refetch all providers */
   refetch: () => void;
+  /** True if Hyperliquid WebSocket is connected (when enableHyperliquidWebSocket is true) */
+  hyperliquidWsConnected: boolean;
 
   // Filter helpers
   /** Get positions by provider */
@@ -92,6 +95,7 @@ export const useDexPositions = (
     keepPreviousData = true,
     waitForAll = false,
     formatPrices = false,
+    enableHyperliquidWebSocket = false,
   } = options;
 
   // Build Aster credentials if provided
@@ -104,16 +108,6 @@ export const useDexPositions = (
     }
     return undefined;
   }, [credentials?.asterApiKey, credentials?.asterApiSecret]);
-
-  // Build Extended credentials if provided
-  const extendedCredentials: ExtendedCredentials | undefined = useMemo(() => {
-    if (credentials?.extendedApiKey) {
-      return {
-        apiKey: credentials.extendedApiKey,
-      };
-    }
-    return undefined;
-  }, [credentials?.extendedApiKey]);
 
   // Build Lighter credentials if provided
   const lighterCredentials: LighterCredentials | undefined = useMemo(() => {
@@ -131,13 +125,27 @@ export const useDexPositions = (
     [wallets]
   );
 
-  // Determine which providers to query based on wallet types, credentials, and include/exclude
+  // Check if Hyperliquid should use WebSocket
+  const useHyperliquidWs = enableHyperliquidWebSocket && normalizedWallets.evm.length > 0;
+
+  // Hyperliquid WebSocket hook (only enabled when useHyperliquidWs is true)
+  const hyperliquidWs = useHyperliquidPositionsWs({
+    wallets: normalizedWallets.evm,
+    enabled: enabled && useHyperliquidWs,
+  });
+
+  // Determine which providers to query via REST (exclude Hyperliquid if using WebSocket)
   const activeProviders = useMemo(() => {
     const allProviderIds = Object.keys(providers) as ProviderId[];
     let filtered = includeProviders ?? allProviderIds;
 
     // Remove excluded providers
     filtered = filtered.filter((id) => !exclude.includes(id));
+
+    // Exclude Hyperliquid from REST if using WebSocket
+    if (useHyperliquidWs) {
+      filtered = filtered.filter((id) => id !== 'hyperliquid');
+    }
 
     // Only include providers where we have wallets for their chain OR credentials for authenticated providers
     return filtered.filter((id) => {
@@ -148,9 +156,6 @@ export const useDexPositions = (
         if (id === 'aster') {
           return asterCredentials !== undefined;
         }
-        if (id === 'extended') {
-          return extendedCredentials !== undefined;
-        }
         // Add other credential-based providers here as needed
         return false;
       }
@@ -158,9 +163,10 @@ export const useDexPositions = (
       // For wallet-based providers, check if we have wallets for their chain
       if (provider.chain === 'evm') return normalizedWallets.evm.length > 0;
       if (provider.chain === 'solana') return normalizedWallets.solana.length > 0;
+      if (provider.chain === 'cosmos') return normalizedWallets.cosmos.length > 0;
       return false;
     });
-  }, [includeProviders, exclude, normalizedWallets, asterCredentials, extendedCredentials]);
+  }, [includeProviders, exclude, normalizedWallets, asterCredentials, useHyperliquidWs]);
 
   // Create queries for each active provider
   const queries = useQueries({
@@ -175,9 +181,6 @@ export const useDexPositions = (
         if (providerId === 'aster') {
           providerCredentials = asterCredentials;
           walletId = asterCredentials?.apiKey ?? 'unknown';
-        } else if (providerId === 'extended') {
-          providerCredentials = extendedCredentials;
-          walletId = extendedCredentials?.apiKey?.slice(0, 8) ?? 'unknown';
         } else {
           providerCredentials = undefined;
           walletId = 'unknown';
@@ -206,10 +209,12 @@ export const useDexPositions = (
         };
       }
 
-      // Handle wallet-based providers (HyperLiquid, Lighter, Pacifica)
+      // Handle wallet-based providers (HyperLiquid, Lighter, Pacifica, dYdX)
       const relevantWallets =
         provider.chain === 'evm'
           ? normalizedWallets.evm
+          : provider.chain === 'cosmos'
+          ? normalizedWallets.cosmos
           : normalizedWallets.solana;
 
       // Get credentials for this provider if available
@@ -241,29 +246,46 @@ export const useDexPositions = (
     }),
   });
 
-  // Aggregate all positions and optionally format prices
+  // Aggregate all positions (REST + WebSocket) and optionally format prices
   const positions = useMemo(() => {
-    const rawPositions = queries.flatMap((q) => q.data?.positions ?? []);
-    return formatPrices ? rawPositions.map(formatPositionPrices) : rawPositions;
-  }, [queries, formatPrices]);
+    // REST positions from queries
+    const restPositions = queries.flatMap((q) => q.data?.positions ?? []);
 
-  // Collect errors from failed queries
-  const errors = useMemo(
-    () =>
-      queries
-        .map((q, i) =>
-          q.error
-            ? { provider: activeProviders[i], error: q.error as Error }
-            : null
-        )
-        .filter((e): e is ProviderError => e !== null),
-    [queries, activeProviders]
-  );
+    // Hyperliquid WebSocket positions (if enabled)
+    const wsPositions = useHyperliquidWs ? hyperliquidWs.positions : [];
 
-  // Refetch all providers
+    // Combine all positions
+    const allPositions = [...restPositions, ...wsPositions];
+
+    return formatPrices ? allPositions.map(formatPositionPrices) : allPositions;
+  }, [queries, formatPrices, useHyperliquidWs, hyperliquidWs.positions]);
+
+  // Collect errors from failed queries (REST + WebSocket)
+  const errors = useMemo(() => {
+    const restErrors = queries
+      .map((q, i) =>
+        q.error
+          ? { provider: activeProviders[i], error: q.error as Error }
+          : null
+      )
+      .filter((e): e is ProviderError => e !== null);
+
+    // Add Hyperliquid WebSocket error if present
+    if (useHyperliquidWs && hyperliquidWs.error) {
+      restErrors.push({ provider: 'hyperliquid', error: hyperliquidWs.error });
+    }
+
+    return restErrors;
+  }, [queries, activeProviders, useHyperliquidWs, hyperliquidWs.error]);
+
+  // Refetch all providers (REST + reconnect WebSocket)
   const refetch = useCallback(() => {
     queries.forEach((q) => q.refetch());
-  }, [queries]);
+    // Reconnect WebSocket if enabled
+    if (useHyperliquidWs) {
+      hyperliquidWs.reconnect();
+    }
+  }, [queries, useHyperliquidWs, hyperliquidWs]);
 
   // Filter helpers
   const getByProvider = useCallback(
@@ -297,20 +319,30 @@ export const useDexPositions = (
     [positions]
   );
 
-  // Loading state depends on waitForAll flag
+  // Loading state depends on waitForAll flag (includes WebSocket loading)
   // waitForAll=true: loading until ALL providers finish
   // waitForAll=false: loading only on initial load (no data yet)
-  const isLoading = waitForAll
+  const restIsLoading = waitForAll
     ? queries.some((q) => q.isLoading)
-    : queries.every((q) => q.isLoading) && positions.length === 0;
+    : queries.every((q) => q.isLoading) && queries.length > 0;
+
+  const wsIsLoading = useHyperliquidWs && hyperliquidWs.isLoading;
+
+  const isLoading = waitForAll
+    ? restIsLoading || wsIsLoading
+    : (restIsLoading || wsIsLoading) && positions.length === 0;
+
+  const isFetching = queries.some((q) => q.isFetching);
+  const isError = queries.some((q) => q.isError) || (useHyperliquidWs && hyperliquidWs.error !== null);
 
   return {
     positions,
     isLoading,
-    isFetching: queries.some((q) => q.isFetching),
-    isError: queries.some((q) => q.isError),
+    isFetching,
+    isError,
     errors,
     refetch,
+    hyperliquidWsConnected: useHyperliquidWs ? hyperliquidWs.isConnected : false,
     getByProvider,
     getByWallet,
     getBySymbol,

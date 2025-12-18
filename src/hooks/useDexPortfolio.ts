@@ -14,7 +14,8 @@ import type { LighterCredentials } from '../types';
 import { fetchPortfolio as fetchHyperliquidPortfolio } from '../providers/hyperliquid';
 import { fetchPortfolio as fetchPacificaPortfolio } from '../providers/pacifica';
 import { fetchPortfolio as fetchLighterPortfolioApi } from '../providers/lighter';
-import { isEvmWallet, isSolanaWallet } from '../utils/chains';
+import { fetchPortfolio as fetchDydxPortfolioApi } from '../providers/dydx';
+import { isEvmWallet, isSolanaWallet, isDydxWallet } from '../utils/chains';
 
 // ============================================
 // Types
@@ -83,24 +84,14 @@ const createLighterFetcher = (credentials?: LighterCredentials) => {
 };
 
 /**
- * Extended doesn't have historical portfolio API, return empty arrays
- */
-const fetchExtendedPortfolio = async (): Promise<{
-  pnl: { timestamp: number; value: string }[];
-  accountValue: { timestamp: number; value: string }[];
-}> => {
-  return { pnl: [], accountValue: [] };
-};
-
-/**
  * Map provider to chain type for wallet filtering
- * HyperLiquid = EVM, Lighter = EVM, Pacifica = Solana, Extended = credential-based (no wallet filter)
+ * HyperLiquid = EVM, Lighter = EVM, Pacifica = Solana, dYdX = Cosmos
  */
 const providerChainFilter: Record<PortfolioProviderId, (wallet: string) => boolean> = {
   hyperliquid: isEvmWallet,
   lighter: isEvmWallet,
   pacifica: isSolanaWallet,
-  extended: () => true, // Extended is credential-based, not wallet-based
+  dydx: isDydxWallet,
 };
 
 // ============================================
@@ -164,8 +155,8 @@ export function useDexPortfolio(
         return fetchPacificaPortfolio;
       case 'lighter':
         return createLighterFetcher(lighterCredentials);
-      case 'extended':
-        return fetchExtendedPortfolio;
+      case 'dydx':
+        return fetchDydxPortfolioApi;
       default:
         return fetchHyperliquidPortfolio;
     }

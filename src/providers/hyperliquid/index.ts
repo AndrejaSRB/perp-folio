@@ -55,3 +55,4 @@ export {
   fetchPortfolio,
 } from './api';
 export { normalizePosition, calculatePriceDecimals } from './normalizer';
+export { combineHyperliquidClearinghouseStates } from './utils';

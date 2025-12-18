@@ -24,6 +24,12 @@ export type {
   HyperliquidAssetPosition,
   HyperliquidMarginSummary,
   HyperliquidClearinghouseState,
+  // WebSocket types
+  HyperliquidWsSubscription,
+  HyperliquidDexStateTuple,
+  HyperliquidAllDexsClearinghouseData,
+  HyperliquidAllDexsWsMessage,
+  HyperliquidCombinedClearinghouseState,
 } from './types/hyperliquid';
 
 // Lighter raw types
@@ -59,14 +65,19 @@ export type {
   AsterExchangeInfoResponse,
 } from './types/aster';
 
-// Extended raw types
+// dYdX raw types
 export type {
-  ExtendedCredentials,
-  ExtendedPositionRaw,
-  ExtendedMarketRaw,
-  ExtendedApiResponse,
-  ExtendedBalanceRaw,
-} from './types/extended';
+  DydxPerpetualPosition,
+  DydxPositionsResponse,
+  DydxSubaccount,
+  DydxSubaccountResponse,
+  DydxPerpetualMarket,
+  DydxMarketsResponse,
+  DydxHistoricalPnlTick,
+  DydxHistoricalPnlResponse,
+  DydxFill,
+  DydxFillsResponse,
+} from './types/dydx';
 
 // Portfolio types
 export type {
@@ -128,11 +139,11 @@ export {
 } from './hooks/useAsterPositions';
 
 export {
-  useExtendedPositions,
-  type UseExtendedPositionsConfig,
-  type UseExtendedPositionsOptions,
-  type UseExtendedPositionsResult,
-} from './hooks/useExtendedPositions';
+  useDydxPositions,
+  type UseDydxPositionsConfig,
+  type UseDydxPositionsOptions,
+  type UseDydxPositionsResult,
+} from './hooks/useDydxPositions';
 
 // Portfolio hook (PnL and Account Value history)
 export {
@@ -162,6 +173,15 @@ export {
   type UseLighterVolumeWsResult,
   type WalletVolume,
 } from './hooks/useLighterVolumeWs';
+
+// Hyperliquid positions WebSocket hook (requires @hypersignals/dex-ws)
+export {
+  useHyperliquidPositionsWs,
+  type UseHyperliquidPositionsWsConfig,
+  type UseHyperliquidPositionsWsOptions,
+  type UseHyperliquidPositionsWsResult,
+  type WalletPositions,
+} from './hooks/useHyperliquidPositionsWs';
 
 // ============ PROVIDERS ============
 
@@ -194,6 +214,7 @@ export {
   getDexNames,
   clearHyperliquidCache,
   calculatePriceDecimals,
+  combineHyperliquidClearinghouseStates,
   type HyperliquidAssetData,
   type HyperliquidPositionWithMeta,
 } from './providers';
@@ -245,15 +266,21 @@ export {
   type AsterPositionWithMeta,
 } from './providers';
 
-// Extended exports (for advanced use)
+// dYdX exports (for advanced use)
 export {
-  extendedProvider,
-  fetchExtendedMarkets,
-  fetchExtendedPositions,
-  fetchExtendedBalance,
-  buildExtendedDecimalsMap,
-  clearExtendedCache,
-  type ExtendedPositionWithMeta,
+  dydxProvider,
+  fetchDydxMarkets,
+  fetchDydxPositions,
+  fetchDydxSubaccount,
+  fetchDydxMarkPrices,
+  buildDydxDecimalsMap,
+  buildDydxMetadata,
+  clearDydxCache,
+  fetchDydxHistoricalPnl,
+  fetchDydxPortfolio,
+  fetchDydxTotalPnl,
+  type DydxPositionWithMeta,
+  type DydxMetadata,
 } from './providers';
 
 // ============ NORMALIZERS ============
@@ -263,7 +290,7 @@ export {
   normalizeLighterPosition,
   normalizePacificaPosition,
   normalizeAsterPosition,
-  normalizeExtendedPosition,
+  normalizeDydxPosition,
 } from './normalizers';
 
 // ============ UTILS ============
@@ -272,6 +299,7 @@ export {
 export {
   isEvmWallet,
   isSolanaWallet,
+  isDydxWallet,
   normalizeSide,
   normalizeWalletsInput,
   type NormalizedWallets,

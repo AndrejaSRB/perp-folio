@@ -26,9 +26,8 @@ export interface WalletPortfolio {
 
 /**
  * Providers that support portfolio data
- * Note: Extended returns empty arrays (no historical API available)
  */
-export type PortfolioProviderId = 'hyperliquid' | 'pacifica' | 'lighter' | 'extended';
+export type PortfolioProviderId = 'hyperliquid' | 'pacifica' | 'lighter' | 'dydx';
 
 /**
  * Lighter PnL data point from API

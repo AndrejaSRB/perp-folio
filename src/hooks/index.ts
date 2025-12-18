@@ -45,13 +45,6 @@ export {
   type UseAsterPositionsResult,
 } from './useAsterPositions';
 
-export {
-  useExtendedPositions,
-  type UseExtendedPositionsConfig,
-  type UseExtendedPositionsOptions,
-  type UseExtendedPositionsResult,
-} from './useExtendedPositions';
-
 // Portfolio hook
 export {
   useDexPortfolio,

@@ -91,3 +91,55 @@ export interface HyperliquidClearinghouseState {
   time: number;
   withdrawable: string;
 }
+
+// ============================================
+// WebSocket Types for allDexsClearinghouseState
+// ============================================
+
+/**
+ * WebSocket subscription message for allDexsClearinghouseState
+ */
+export interface HyperliquidWsSubscription {
+  type: 'allDexsClearinghouseState';
+  user: string;
+}
+
+/**
+ * Individual DEX clearinghouse state tuple
+ * [dexName, clearinghouseState] where dexName is "" for main perp
+ */
+export type HyperliquidDexStateTuple = [string, HyperliquidClearinghouseState];
+
+/**
+ * WebSocket event data for allDexsClearinghouseState
+ */
+export interface HyperliquidAllDexsClearinghouseData {
+  user: string;
+  clearinghouseStates: HyperliquidDexStateTuple[];
+}
+
+/**
+ * WebSocket message for allDexsClearinghouseState channel
+ */
+export interface HyperliquidAllDexsWsMessage {
+  channel: 'allDexsClearinghouseState';
+  data: HyperliquidAllDexsClearinghouseData;
+}
+
+/**
+ * Combined clearinghouse state from all DEXs
+ */
+export interface HyperliquidCombinedClearinghouseState {
+  /** Aggregated margin summary across all DEXs */
+  marginSummary: HyperliquidMarginSummary;
+  /** Aggregated cross margin summary across all DEXs */
+  crossMarginSummary: HyperliquidMarginSummary;
+  /** Sum of cross maintenance margin used across all DEXs */
+  crossMaintenanceMarginUsed: string;
+  /** Sum of withdrawable across all DEXs */
+  withdrawable: string;
+  /** Combined positions from all DEXs */
+  assetPositions: HyperliquidAssetPosition[];
+  /** Most recent time from all DEXs */
+  time: number;
+}

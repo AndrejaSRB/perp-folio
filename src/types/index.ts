@@ -17,6 +17,12 @@ export type {
   HyperliquidAssetPosition,
   HyperliquidMarginSummary,
   HyperliquidClearinghouseState,
+  // WebSocket types
+  HyperliquidWsSubscription,
+  HyperliquidDexStateTuple,
+  HyperliquidAllDexsClearinghouseData,
+  HyperliquidAllDexsWsMessage,
+  HyperliquidCombinedClearinghouseState,
 } from './hyperliquid';
 
 // Lighter raw types
@@ -52,13 +58,19 @@ export type {
   AsterExchangeInfoResponse,
 } from './aster';
 
-// Extended raw types
+// dYdX raw types
 export type {
-  ExtendedCredentials,
-  ExtendedPositionRaw,
-  ExtendedMarketRaw,
-  ExtendedApiResponse,
-} from './extended';
+  DydxPerpetualPosition,
+  DydxPositionsResponse,
+  DydxSubaccount,
+  DydxSubaccountResponse,
+  DydxPerpetualMarket,
+  DydxMarketsResponse,
+  DydxHistoricalPnlTick,
+  DydxHistoricalPnlResponse,
+  DydxFill,
+  DydxFillsResponse,
+} from './dydx';
 
 // Portfolio types
 export type {

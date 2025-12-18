@@ -5,10 +5,10 @@ import type {
   LighterOrderBookDetails,
   LighterOrderBookDetailsResponse,
   LighterCredentials,
-} from '../../types';
-import { getCached, clearCacheByPrefix } from '../../utils/cache';
+} from "../../types";
+import { getCached, clearCacheByPrefix } from "../../utils/cache";
 
-const BASE_URL = 'https://mainnet.zklighter.elliot.ai';
+const BASE_URL = "https://mainnet.zklighter.elliot.ai";
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
 // ============================================
@@ -18,9 +18,12 @@ const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 /**
  * Build URL with optional auth parameter
  */
-const buildAuthUrl = (baseUrl: string, credentials?: LighterCredentials): string => {
+const buildAuthUrl = (
+  baseUrl: string,
+  credentials?: LighterCredentials
+): string => {
   if (credentials?.readToken) {
-    const separator = baseUrl.includes('?') ? '&' : '?';
+    const separator = baseUrl.includes("?") ? "&" : "?";
     return `${baseUrl}${separator}auth=${credentials.readToken}`;
   }
   return baseUrl;
@@ -34,16 +37,20 @@ const buildAuthUrl = (baseUrl: string, credentials?: LighterCredentials): string
  * Fetch all market metadata (cached for 30min)
  */
 export const fetchOrderBooks = async (): Promise<LighterMarketMeta[]> => {
-  return getCached('lighter:orderBooks', async () => {
-    const response = await fetch(`${BASE_URL}/api/v1/orderBooks`);
+  return getCached(
+    "lighter:orderBooks",
+    async () => {
+      const response = await fetch(`${BASE_URL}/api/v1/orderBooks`);
 
-    if (!response.ok) {
-      throw new Error(`Lighter orderBooks error: ${response.status}`);
-    }
+      if (!response.ok) {
+        throw new Error(`Lighter orderBooks error: ${response.status}`);
+      }
 
-    const data: LighterOrderBooksResponse = await response.json();
-    return data.order_books;
-  }, CACHE_TTL);
+      const data: LighterOrderBooksResponse = await response.json();
+      return data.order_books;
+    },
+    CACHE_TTL
+  );
 };
 
 /**
@@ -69,7 +76,9 @@ export const buildDecimalsMap = async (): Promise<{
 /**
  * Fetch order book details for all symbols (includes last_trade_price as mark price)
  */
-export const fetchOrderBookDetails = async (): Promise<LighterOrderBookDetails[]> => {
+export const fetchOrderBookDetails = async (): Promise<
+  LighterOrderBookDetails[]
+> => {
   const response = await fetch(`${BASE_URL}/api/v1/orderBookDetails`);
 
   if (!response.ok) {
@@ -115,7 +124,8 @@ export const fetchAccount = async (
   address: string,
   credentials?: LighterCredentials
 ): Promise<LighterAccountsResponse> => {
-  const baseUrl = `${BASE_URL}/api/v1/account?by=l1_address&value=${address}`;
+  const checksummedAddress = toChecksumAddress(address);
+  const baseUrl = `${BASE_URL}/api/v1/account?by=l1_address&value=${checksummedAddress}`;
   const url = buildAuthUrl(baseUrl, credentials);
 
   const response = await fetch(url);
@@ -136,7 +146,7 @@ export const fetchAccount = async (
  * Clear Lighter metadata cache
  */
 export const clearLighterCache = (): void => {
-  clearCacheByPrefix('lighter:');
+  clearCacheByPrefix("lighter:");
 };
 
 /**
@@ -159,12 +169,13 @@ export const fetchPositions = async (
 };
 
 // Re-export LighterPosition type for use in fetchPositions
-import type { LighterPosition } from '../../types';
+import type { LighterPosition } from "../../types";
 import type {
   PortfolioTimeframe,
   PortfolioDataPoint,
   LighterPnlResponse,
-} from '../../types/portfolio';
+} from "../../types/portfolio";
+import { toChecksumAddress } from "../../utils";
 
 /**
  * Lighter metadata type with decimals and mark prices
@@ -179,10 +190,14 @@ export interface LighterMetadata {
  * Build complete metadata map including mark prices
  * @param symbols - Optional list of symbols to fetch mark prices for
  */
-export const buildMetadata = async (symbols?: string[]): Promise<LighterMetadata> => {
+export const buildMetadata = async (
+  symbols?: string[]
+): Promise<LighterMetadata> => {
   const [decimalsMap, markPrices] = await Promise.all([
     buildDecimalsMap(),
-    symbols && symbols.length > 0 ? fetchMarkPrices(symbols) : Promise.resolve(new Map<string, string>()),
+    symbols && symbols.length > 0
+      ? fetchMarkPrices(symbols)
+      : Promise.resolve(new Map<string, string>()),
   ]);
 
   return {
@@ -199,7 +214,9 @@ export const buildMetadata = async (symbols?: string[]): Promise<LighterMetadata
 /**
  * Map timeframe to Lighter API parameters
  */
-const getTimeframeParams = (timeframe: PortfolioTimeframe): {
+const getTimeframeParams = (
+  timeframe: PortfolioTimeframe
+): {
   resolution: string;
   startTimestamp: number;
   countBack: number;
@@ -207,28 +224,28 @@ const getTimeframeParams = (timeframe: PortfolioTimeframe): {
   const now = Math.floor(Date.now() / 1000);
 
   switch (timeframe) {
-    case '1d':
+    case "1d":
       return {
-        resolution: '1h',
+        resolution: "1h",
         startTimestamp: now - 24 * 60 * 60,
         countBack: 24,
       };
-    case '7d':
+    case "7d":
       return {
-        resolution: '1h',
+        resolution: "1h",
         startTimestamp: now - 7 * 24 * 60 * 60,
         countBack: 168, // 7 * 24
       };
-    case '30d':
+    case "30d":
       return {
-        resolution: '1d',
+        resolution: "1d",
         startTimestamp: now - 30 * 24 * 60 * 60,
         countBack: 30,
       };
-    case 'all':
+    case "all":
     default:
       return {
-        resolution: '1d',
+        resolution: "1d",
         startTimestamp: 0,
         countBack: 1000, // Large enough to get all data
       };
@@ -246,7 +263,8 @@ export const fetchPnl = async (
   timeframe: PortfolioTimeframe,
   credentials?: LighterCredentials
 ): Promise<LighterPnlResponse> => {
-  const { resolution, startTimestamp, countBack } = getTimeframeParams(timeframe);
+  const { resolution, startTimestamp, countBack } =
+    getTimeframeParams(timeframe);
   const endTimestamp = Math.floor(Date.now() / 1000);
 
   let url = `${BASE_URL}/api/v1/pnl?by=index&value=${accountIndex}&resolution=${resolution}&start_timestamp=${startTimestamp}&end_timestamp=${endTimestamp}&count_back=${countBack}`;
@@ -260,20 +278,11 @@ export const fetchPnl = async (
 
   const data: LighterPnlResponse = await response.json();
 
-  // Debug: log raw API response
-  console.log(`[Lighter API] fetchPnl for account ${accountIndex}, timeframe ${timeframe}`);
-  console.log(`[Lighter API] startTimestamp: ${startTimestamp} (${new Date(startTimestamp * 1000).toISOString()})`);
-  console.log(`[Lighter API] raw pnl points: ${data.pnl.length}`);
-  if (data.pnl.length > 0) {
-    console.log(`[Lighter API] first raw point:`, data.pnl[0]);
-    console.log(`[Lighter API] last raw point:`, data.pnl[data.pnl.length - 1]);
-  }
-
   // Filter data to only include points within the requested timeframe
   // The API may return data outside the requested range
-  const filteredPnl = data.pnl.filter((point) => point.timestamp >= startTimestamp);
-
-  console.log(`[Lighter API] filtered pnl points: ${filteredPnl.length}`);
+  const filteredPnl = data.pnl.filter(
+    (point) => point.timestamp >= startTimestamp
+  );
 
   return { ...data, pnl: filteredPnl };
 };
@@ -308,11 +317,19 @@ export const fetchPortfolio = async (
   );
 
   // Aggregate PnL data by timestamp
-  const pnlByTimestamp = new Map<number, { tradePnl: number; poolPnl: number; inflow: number; outflow: number }>();
+  const pnlByTimestamp = new Map<
+    number,
+    { tradePnl: number; poolPnl: number; inflow: number; outflow: number }
+  >();
 
   for (const result of pnlResults) {
     for (const point of result.pnl) {
-      const existing = pnlByTimestamp.get(point.timestamp) ?? { tradePnl: 0, poolPnl: 0, inflow: 0, outflow: 0 };
+      const existing = pnlByTimestamp.get(point.timestamp) ?? {
+        tradePnl: 0,
+        poolPnl: 0,
+        inflow: 0,
+        outflow: 0,
+      };
       pnlByTimestamp.set(point.timestamp, {
         tradePnl: existing.tradePnl + point.trade_pnl,
         poolPnl: existing.poolPnl + point.pool_pnl,
@@ -334,17 +351,21 @@ export const fetchPortfolio = async (
   });
 
   // Account value = inflow - outflow + total_pnl
-  const accountValue: PortfolioDataPoint[] = sortedTimestamps.map((timestamp) => {
-    const data = pnlByTimestamp.get(timestamp)!;
-    const totalPnl = data.tradePnl + data.poolPnl;
-    const value = data.inflow - data.outflow + totalPnl;
-    // Convert seconds to milliseconds for consistency with other providers
-    return { timestamp: timestamp * 1000, value: value.toFixed(2) };
-  });
+  const accountValue: PortfolioDataPoint[] = sortedTimestamps.map(
+    (timestamp) => {
+      const data = pnlByTimestamp.get(timestamp)!;
+      const totalPnl = data.tradePnl + data.poolPnl;
+      const value = data.inflow - data.outflow + totalPnl;
+      // Convert seconds to milliseconds for consistency with other providers
+      return { timestamp: timestamp * 1000, value: value.toFixed(2) };
+    }
+  );
 
   // Filter out empty/zero data - if all values are zero, return empty arrays
   const hasNonZeroPnl = pnl.some((p) => parseFloat(p.value) !== 0);
-  const hasNonZeroAccountValue = accountValue.some((p) => parseFloat(p.value) !== 0);
+  const hasNonZeroAccountValue = accountValue.some(
+    (p) => parseFloat(p.value) !== 0
+  );
 
   if (!hasNonZeroPnl && !hasNonZeroAccountValue) {
     return { pnl: [], accountValue: [] };
@@ -371,7 +392,7 @@ export const fetchTotalPnl = async (
   // Fetch all-time PnL for all accounts
   const pnlResults = await Promise.all(
     accountData.accounts.map((account) =>
-      fetchPnl(account.account_index, 'all', credentials)
+      fetchPnl(account.account_index, "all", credentials)
     )
   );
 

@@ -2,11 +2,13 @@
 export {
   isEvmWallet,
   isSolanaWallet,
+  isDydxWallet,
+  toChecksumAddress,
   normalizeSide,
   normalizeWalletsInput,
   type NormalizedWallets,
   type WalletsParam,
-} from './chains';
+} from "./chains";
 
 // Formatting utilities
 export {
@@ -26,7 +28,7 @@ export {
   formatPositionMargin,
   formatPnl,
   type FormattedPosition,
-} from './formatting';
+} from "./formatting";
 
 // Cache utilities
 export {
@@ -34,7 +36,7 @@ export {
   clearCache,
   clearCacheByPrefix,
   clearAllCache,
-} from './cache';
+} from "./cache";
 
 // Cached fetch utilities
 export {
@@ -42,7 +44,7 @@ export {
   uncachedFetch,
   type CachedFetchConfig,
   type HttpMethod,
-} from './cachedFetch';
+} from "./cachedFetch";
 
 // Metadata utilities
 export {
@@ -54,7 +56,7 @@ export {
   type AssetData,
   type DecimalsMapConfig,
   type AssetDataMapConfig,
-} from './metadata';
+} from "./metadata";
 
 // Position calculation utilities
 export {
@@ -68,4 +70,4 @@ export {
   getSideFromSignedSize,
   isZeroPosition,
   type PositionSide,
-} from './positionCalc';
+} from "./positionCalc";

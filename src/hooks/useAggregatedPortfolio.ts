@@ -5,13 +5,14 @@
 
 import { useQueries } from '@tanstack/react-query';
 import { useMemo, useCallback } from 'react';
-import type { ProviderId, NormalizedPosition, LighterCredentials, ExtendedCredentials } from '../types';
+import type { ProviderId, NormalizedPosition, LighterCredentials } from '../types';
 import { providers } from '../providers';
 import { fetchTotalPnl as fetchLighterTotalPnl } from '../providers/lighter';
-import { fetchBalance as fetchExtendedBalance } from '../providers/extended';
 import { fetchVolume as fetchPacificaVolume, fetchTotalPnl as fetchPacificaTotalPnl } from '../providers/pacifica';
+import { fetchSubaccount as fetchDydxSubaccount, fetchTotalPnl as fetchDydxTotalPnl } from '../providers/dydx';
 import { normalizeWalletsInput, type WalletsParam } from '../utils/chains';
 import { useLighterVolumeWs } from './useLighterVolumeWs';
+import { useHyperliquidPositionsWs } from './useHyperliquidPositionsWs';
 import type { DexCredentials } from './useDexPositions';
 
 // ============================================
@@ -24,10 +25,14 @@ import type { DexCredentials } from './useDexPositions';
 export interface DexAccountSummary {
   /** Account equity/balance in USD */
   accountBalance: number;
-  /** Total trading volume (0 for now) */
+  /** Total trading volume */
   totalVolume: number;
   /** Total realized PnL */
   totalPnl: number;
+  /** Total unrealized PnL from open positions */
+  unrealizedPnl: number;
+  /** Total size in USD (notional) from open positions */
+  sizeUsd: number;
 }
 
 /**
@@ -43,12 +48,14 @@ export type PerDexBreakdown = {
 export interface AggregatedPortfolioData {
   /** Total account balance across all DEXes */
   totalAccountBalance: number;
-  /** Total trading volume (0 for now) */
+  /** Total trading volume */
   totalVolume: number;
   /** Total realized PnL across all DEXes */
   totalPnl: number;
   /** Total unrealized PnL from open positions */
   totalUnrealizedPnl: number;
+  /** Total size in USD (notional) from all open positions */
+  totalSizeUsd: number;
   /** Composite leverage: Total Notional / Total Equity */
   compositeLeverage: number;
   /** Per-DEX breakdown */
@@ -71,6 +78,8 @@ export interface UseAggregatedPortfolioConfig {
   retry?: number | boolean;
   /** Enable Lighter volume via WebSocket (requires @hypersignals/dex-ws) */
   enableLighterWebSocket?: boolean;
+  /** Enable Hyperliquid via WebSocket for positions and account data (requires @hypersignals/dex-ws) */
+  enableHyperliquidWebSocket?: boolean;
 }
 
 /**
@@ -94,7 +103,7 @@ export interface PerDexLoadingStates {
   hyperliquid: boolean;
   lighter: boolean;
   pacifica: boolean;
-  extended: boolean;
+  dydx: boolean;
 }
 
 /**
@@ -120,6 +129,59 @@ export interface UseAggregatedPortfolioResult {
 // ============================================
 // Account Summary Fetchers
 // ============================================
+
+/**
+ * Fetch HyperLiquid portfolio stats (volume + totalPnl) from REST API
+ * Used when WebSocket is enabled for account data but we still need portfolio stats
+ */
+const fetchHyperliquidPortfolioStats = async (
+  wallets: string[]
+): Promise<{ totalVolume: number; totalPnl: number }> => {
+  if (wallets.length === 0) {
+    return { totalVolume: 0, totalPnl: 0 };
+  }
+
+  const API_URL = 'https://api.hyperliquid.xyz/info';
+
+  const results = await Promise.all(
+    wallets.map(async (wallet) => {
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'portfolio',
+            user: wallet,
+          }),
+        });
+
+        let totalPnl = 0;
+        let volume = 0;
+
+        if (response.ok) {
+          const portfolioData: [string, { vlm?: string; pnlHistory?: [number, string][] }][] = await response.json();
+          const allTimeEntry = portfolioData.find(([key]) => key === 'perpAllTime');
+          if (allTimeEntry) {
+            volume = parseFloat(allTimeEntry[1].vlm ?? '0');
+            const pnlHistory = allTimeEntry[1].pnlHistory ?? [];
+            if (pnlHistory.length > 0) {
+              totalPnl = parseFloat(pnlHistory[pnlHistory.length - 1][1] ?? '0');
+            }
+          }
+        }
+
+        return { totalPnl, volume };
+      } catch {
+        return { totalPnl: 0, volume: 0 };
+      }
+    })
+  );
+
+  return {
+    totalVolume: results.reduce((sum, r) => sum + r.volume, 0),
+    totalPnl: results.reduce((sum, r) => sum + r.totalPnl, 0),
+  };
+};
 
 /**
  * Fetch HyperLiquid account summary
@@ -163,25 +225,23 @@ const fetchHyperliquidAccountSummary = async (
         let totalPnl = 0;
         let volume = 0;
 
-        // Parse clearinghouse state
+        // Parse clearinghouse state for account value
         if (clearinghouseResponse.ok) {
           const data = await clearinghouseResponse.json();
           accountValue = parseFloat(data.marginSummary?.accountValue ?? '0');
-
-          // Sum unrealized PnL from positions
-          totalPnl = (data.assetPositions ?? []).reduce(
-            (sum: number, pos: { position?: { unrealizedPnl?: string } }) =>
-              sum + parseFloat(pos.position?.unrealizedPnl ?? '0'),
-            0
-          );
         }
 
-        // Parse portfolio for volume (perpAllTime.vlm)
+        // Parse portfolio for volume and total PnL (perpAllTime)
         if (portfolioResponse.ok) {
-          const portfolioData: [string, { vlm?: string }][] = await portfolioResponse.json();
+          const portfolioData: [string, { vlm?: string; pnlHistory?: [number, string][] }][] = await portfolioResponse.json();
           const allTimeEntry = portfolioData.find(([key]) => key === 'perpAllTime');
           if (allTimeEntry) {
             volume = parseFloat(allTimeEntry[1].vlm ?? '0');
+            // Get total PnL from last entry of pnlHistory
+            const pnlHistory = allTimeEntry[1].pnlHistory ?? [];
+            if (pnlHistory.length > 0) {
+              totalPnl = parseFloat(pnlHistory[pnlHistory.length - 1][1] ?? '0');
+            }
           }
         }
 
@@ -306,29 +366,39 @@ const fetchPacificaAccountSummary = async (
 };
 
 /**
- * Fetch Extended account summary
- * Uses /user/balance endpoint - requires API key
- * @param credentials - Extended API credentials
+ * Fetch dYdX account summary
+ * Uses subaccount endpoint for equity and historical PnL endpoint for total PnL
  */
-const fetchExtendedAccountSummary = async (
-  credentials?: ExtendedCredentials
-): Promise<{ accountBalance: number; totalVolume: number; totalPnl: number; unrealizedPnl: number }> => {
-  if (!credentials?.apiKey) {
-    return { accountBalance: 0, totalVolume: 0, totalPnl: 0, unrealizedPnl: 0 };
+const fetchDydxAccountSummary = async (
+  wallets: string[]
+): Promise<{ accountBalance: number; totalVolume: number; totalPnl: number }> => {
+  if (wallets.length === 0) {
+    return { accountBalance: 0, totalVolume: 0, totalPnl: 0 };
   }
 
-  try {
-    const balance = await fetchExtendedBalance(credentials);
+  const results = await Promise.all(
+    wallets.map(async (wallet) => {
+      try {
+        // Fetch subaccount (for equity) and total PnL in parallel
+        const [subaccountData, totalPnl] = await Promise.all([
+          fetchDydxSubaccount(wallet),
+          fetchDydxTotalPnl(wallet),
+        ]);
 
-    return {
-      accountBalance: parseFloat(balance.equity ?? '0'),
-      totalVolume: 0, // Volume not available without pagination
-      totalPnl: 0, // Total realized PnL not available without pagination
-      unrealizedPnl: parseFloat(balance.unrealisedPnl ?? '0'),
-    };
-  } catch {
-    return { accountBalance: 0, totalVolume: 0, totalPnl: 0, unrealizedPnl: 0 };
-  }
+        const accountEquity = parseFloat(subaccountData?.subaccount?.equity ?? '0');
+
+        return { accountEquity, totalPnl };
+      } catch {
+        return { accountEquity: 0, totalPnl: 0 };
+      }
+    })
+  );
+
+  return {
+    accountBalance: results.reduce((sum, r) => sum + r.accountEquity, 0),
+    totalVolume: 0, // dYdX doesn't have a volume endpoint
+    totalPnl: results.reduce((sum, r) => sum + r.totalPnl, 0),
+  };
 };
 
 // ============================================
@@ -365,16 +435,11 @@ export function useAggregatedPortfolio(
     staleTime = 30_000,
     retry = 2,
     enableLighterWebSocket = false,
+    enableHyperliquidWebSocket = false,
   } = options;
 
   // Extract credentials
   const lighterReadToken = credentials?.lighterReadToken;
-  const extendedCredentials: ExtendedCredentials | undefined = useMemo(() => {
-    if (credentials?.extendedApiKey) {
-      return { apiKey: credentials.extendedApiKey };
-    }
-    return undefined;
-  }, [credentials?.extendedApiKey]);
 
   // Normalize wallet input
   const normalizedWallets = useMemo(
@@ -389,7 +454,16 @@ export function useAggregatedPortfolio(
     enabled: enabled && enableLighterWebSocket && normalizedWallets.evm.length > 0,
   });
 
-  // Determine active providers
+  // Check if Hyperliquid should use WebSocket
+  const useHyperliquidWs = enableHyperliquidWebSocket && normalizedWallets.evm.length > 0;
+
+  // Hyperliquid WebSocket for positions and account data (optional)
+  const hyperliquidWs = useHyperliquidPositionsWs({
+    wallets: normalizedWallets.evm,
+    enabled: enabled && useHyperliquidWs,
+  });
+
+  // Determine active providers (for account summary queries - NOT position queries)
   const activeProviders = useMemo(() => {
     const allProviderIds = Object.keys(providers) as ProviderId[];
     let filtered = includeProviders ?? allProviderIds;
@@ -401,11 +475,6 @@ export function useAggregatedPortfolio(
     filtered = filtered.filter((id) => {
       const provider = providers[id];
 
-      // Extended: include if we have credentials
-      if (id === 'extended') {
-        return extendedCredentials !== undefined;
-      }
-
       // Aster: skip for now (no balance endpoint implemented)
       if (id === 'aster') {
         return false;
@@ -414,21 +483,30 @@ export function useAggregatedPortfolio(
       // Wallet-based providers: include if we have wallets for their chain
       if (provider.chain === 'evm') return normalizedWallets.evm.length > 0;
       if (provider.chain === 'solana') return normalizedWallets.solana.length > 0;
+      if (provider.chain === 'cosmos') return normalizedWallets.cosmos.length > 0;
       return false;
     });
 
     return filtered;
-  }, [includeProviders, exclude, normalizedWallets, extendedCredentials]);
+  }, [includeProviders, exclude, normalizedWallets]);
 
-  // Fetch positions from all providers (for unrealized PnL and notional)
+  // Providers for REST position queries (exclude Hyperliquid if using WebSocket)
+  const positionProviders = useMemo(() => {
+    if (useHyperliquidWs) {
+      return activeProviders.filter((id) => id !== 'hyperliquid');
+    }
+    return activeProviders;
+  }, [activeProviders, useHyperliquidWs]);
+
+  // Fetch positions from providers via REST (exclude Hyperliquid if using WebSocket)
   const positionQueries = useQueries({
-    queries: activeProviders
-      .filter((id) => id !== 'extended') // Extended positions are fetched separately via credentials
-      .map((providerId) => {
+    queries: positionProviders.map((providerId) => {
         const provider = providers[providerId];
         const relevantWallets =
           provider.chain === 'evm'
             ? normalizedWallets.evm
+            : provider.chain === 'cosmos'
+            ? normalizedWallets.cosmos
             : normalizedWallets.solana;
 
         // Get credentials for this provider if available
@@ -464,13 +542,14 @@ export function useAggregatedPortfolio(
   });
 
   // Fetch account summaries from each provider
-  // Order: [0] = hyperliquid, [1] = lighter, [2] = pacifica, [3] = extended
+  // Order: [0] = hyperliquid (skipped if using WebSocket), [1] = lighter, [2] = pacifica, [3] = dydx, [4] = hyperliquid portfolio stats (when using WebSocket)
   const accountQueries = useQueries({
     queries: [
       {
         queryKey: ['account-summary', 'hyperliquid', ...normalizedWallets.evm.sort()],
         queryFn: () => fetchHyperliquidAccountSummary(normalizedWallets.evm),
-        enabled: enabled && activeProviders.includes('hyperliquid'),
+        // Skip REST if using WebSocket for Hyperliquid
+        enabled: enabled && activeProviders.includes('hyperliquid') && !useHyperliquidWs,
         refetchInterval,
         refetchOnWindowFocus,
         staleTime,
@@ -495,9 +574,20 @@ export function useAggregatedPortfolio(
         retry,
       },
       {
-        queryKey: ['account-summary', 'extended', extendedCredentials?.apiKey ?? ''],
-        queryFn: () => fetchExtendedAccountSummary(extendedCredentials),
-        enabled: enabled && activeProviders.includes('extended'),
+        queryKey: ['account-summary', 'dydx', ...normalizedWallets.cosmos.sort()],
+        queryFn: () => fetchDydxAccountSummary(normalizedWallets.cosmos),
+        enabled: enabled && activeProviders.includes('dydx'),
+        refetchInterval,
+        refetchOnWindowFocus,
+        staleTime,
+        retry,
+      },
+      // Hyperliquid portfolio stats (volume + totalPnl) - only when using WebSocket for account data
+      {
+        queryKey: ['portfolio-stats', 'hyperliquid', ...normalizedWallets.evm.sort()],
+        queryFn: () => fetchHyperliquidPortfolioStats(normalizedWallets.evm),
+        // Only fetch when WebSocket is enabled (account data comes from WS, but volume/pnl from REST)
+        enabled: enabled && activeProviders.includes('hyperliquid') && useHyperliquidWs,
         refetchInterval,
         refetchOnWindowFocus,
         staleTime,
@@ -508,51 +598,98 @@ export function useAggregatedPortfolio(
 
   // Aggregate data
   const data = useMemo((): AggregatedPortfolioData | null => {
-    // Check if we have any data
+    // Check if we have any data (including WebSocket data)
     const hasPositionData = positionQueries.some((q) => q.data !== undefined);
     const hasAccountData = accountQueries.some((q) => q.data !== undefined);
+    const hasHyperliquidWsData = useHyperliquidWs && hyperliquidWs.wallets.length > 0;
 
-    if (!hasPositionData && !hasAccountData) {
+    if (!hasPositionData && !hasAccountData && !hasHyperliquidWsData) {
       return null;
     }
 
-    // Get all positions
-    const allPositions = positionQueries.flatMap((q) => q.data?.positions ?? []);
+    // Get all positions (REST + WebSocket)
+    const restPositions = positionQueries.flatMap((q) => q.data?.positions ?? []);
+    const wsPositions = useHyperliquidWs ? hyperliquidWs.positions : [];
+    const allPositions = [...restPositions, ...wsPositions];
 
-    // Calculate totals from positions
+    // Calculate totals and per-DEX breakdown from positions
     let totalUnrealizedPnl = 0;
-    let totalNotional = 0;
+    let totalSizeUsd = 0;
+
+    // Per-DEX position stats
+    const perDexPositionStats: Record<ProviderId, { unrealizedPnl: number; sizeUsd: number }> = {
+      hyperliquid: { unrealizedPnl: 0, sizeUsd: 0 },
+      lighter: { unrealizedPnl: 0, sizeUsd: 0 },
+      pacifica: { unrealizedPnl: 0, sizeUsd: 0 },
+      aster: { unrealizedPnl: 0, sizeUsd: 0 },
+      dydx: { unrealizedPnl: 0, sizeUsd: 0 },
+    };
 
     for (const pos of allPositions) {
-      totalUnrealizedPnl += parseFloat(pos.unrealizedPnl ?? '0');
-      // Notional = |size * markPrice|
-      const size = parseFloat(pos.size ?? '0');
-      const markPrice = parseFloat(pos.markPrice ?? pos.entryPrice ?? '0');
-      totalNotional += Math.abs(size * markPrice);
+      const unrealizedPnl = parseFloat(pos.unrealizedPnl ?? '0');
+      totalUnrealizedPnl += unrealizedPnl;
+
+      // Use sizeUsd if available, otherwise calculate from size * markPrice
+      let sizeUsd: number;
+      if (pos.sizeUsd) {
+        sizeUsd = Math.abs(parseFloat(pos.sizeUsd));
+      } else {
+        const size = parseFloat(pos.size ?? '0');
+        const markPrice = parseFloat(pos.markPrice ?? pos.entryPrice ?? '0');
+        sizeUsd = Math.abs(size * markPrice);
+      }
+      totalSizeUsd += sizeUsd;
+
+      // Aggregate per provider
+      if (perDexPositionStats[pos.provider]) {
+        perDexPositionStats[pos.provider].unrealizedPnl += unrealizedPnl;
+        perDexPositionStats[pos.provider].sizeUsd += sizeUsd;
+      }
     }
 
-    // Get account summaries (order: [0]=hl, [1]=lighter, [2]=pacifica, [3]=extended)
-    const hlSummary = activeProviders.includes('hyperliquid') ? accountQueries[0].data : null;
+    // Get account summaries (order: [0]=hl, [1]=lighter, [2]=pacifica, [3]=dydx, [4]=hl portfolio stats)
+    // For Hyperliquid, use WebSocket data for account balance, but REST for volume/totalPnl
+    let hlAccountBalance = 0;
+    let hlTotalVolume = 0;
+    let hlTotalPnl = 0;
+
+    if (activeProviders.includes('hyperliquid')) {
+      if (useHyperliquidWs) {
+        // Account balance from WebSocket
+        for (const walletData of hyperliquidWs.wallets) {
+          const state = walletData.clearinghouseState;
+          if (state) {
+            hlAccountBalance += parseFloat(state.marginSummary.accountValue);
+          }
+        }
+        // Volume and totalPnl from REST portfolio stats query [4]
+        const hlPortfolioStats = accountQueries[4]?.data as { totalVolume: number; totalPnl: number } | undefined;
+        hlTotalVolume = hlPortfolioStats?.totalVolume ?? 0;
+        hlTotalPnl = hlPortfolioStats?.totalPnl ?? 0;
+      } else {
+        const hlSummary = accountQueries[0].data;
+        hlAccountBalance = hlSummary?.accountBalance ?? 0;
+        hlTotalVolume = hlSummary?.totalVolume ?? 0;
+        hlTotalPnl = hlSummary?.totalPnl ?? 0;
+      }
+    }
+
     const lighterSummary = activeProviders.includes('lighter') ? accountQueries[1].data : null;
     const pacificaSummary = activeProviders.includes('pacifica') ? accountQueries[2].data : null;
-    const extendedSummary = activeProviders.includes('extended') ? accountQueries[3].data : null;
-
-    // Add Extended's unrealized PnL (from balance endpoint) to total
-    // Extended returns unrealizedPnl directly from balance API
-    const extendedUnrealizedPnl = (extendedSummary as { unrealizedPnl?: number } | null)?.unrealizedPnl ?? 0;
+    const dydxSummary = activeProviders.includes('dydx') ? accountQueries[3].data : null;
 
     // Calculate totals
     const totalAccountBalance =
-      (hlSummary?.accountBalance ?? 0) +
+      hlAccountBalance +
       (lighterSummary?.accountBalance ?? 0) +
       (pacificaSummary?.accountBalance ?? 0) +
-      (extendedSummary?.accountBalance ?? 0);
+      (dydxSummary?.accountBalance ?? 0);
 
     const totalPnl =
-      (hlSummary?.totalPnl ?? 0) +
+      hlTotalPnl +
       (lighterSummary?.totalPnl ?? 0) +
       (pacificaSummary?.totalPnl ?? 0) +
-      (extendedSummary?.totalPnl ?? 0);
+      (dydxSummary?.totalPnl ?? 0);
 
     // Lighter volume from WebSocket (if enabled) or REST (0)
     const lighterVolume = enableLighterWebSocket
@@ -561,28 +698,29 @@ export function useAggregatedPortfolio(
 
     // Total volume
     const totalVolume =
-      (hlSummary?.totalVolume ?? 0) +
+      hlTotalVolume +
       lighterVolume +
       (pacificaSummary?.totalVolume ?? 0) +
-      (extendedSummary?.totalVolume ?? 0);
+      (dydxSummary?.totalVolume ?? 0);
 
-    // Add Extended unrealized PnL to total
-    totalUnrealizedPnl += extendedUnrealizedPnl;
-
-    // Composite leverage = Total Notional / Total Equity
+    // Composite leverage = Total Size USD / Total Equity
     const compositeLeverage = totalAccountBalance > 0
-      ? totalNotional / totalAccountBalance
+      ? totalSizeUsd / totalAccountBalance
       : 0;
 
     // Build per-DEX breakdown
     const perDex: PerDexBreakdown = {};
 
     if (activeProviders.includes('hyperliquid')) {
-      perDex.hyperliquid = hlSummary
+      // Use WebSocket data if enabled, otherwise REST
+      const hasHlData = useHyperliquidWs ? hlAccountBalance > 0 : accountQueries[0].data !== null;
+      perDex.hyperliquid = hasHlData
         ? {
-            accountBalance: hlSummary.accountBalance,
-            totalVolume: hlSummary.totalVolume,
-            totalPnl: hlSummary.totalPnl,
+            accountBalance: hlAccountBalance,
+            totalVolume: hlTotalVolume,
+            totalPnl: hlTotalPnl,
+            unrealizedPnl: perDexPositionStats.hyperliquid.unrealizedPnl,
+            sizeUsd: perDexPositionStats.hyperliquid.sizeUsd,
           }
         : null;
     }
@@ -593,6 +731,8 @@ export function useAggregatedPortfolio(
             accountBalance: lighterSummary.accountBalance,
             totalVolume: lighterVolume,
             totalPnl: lighterSummary.totalPnl,
+            unrealizedPnl: perDexPositionStats.lighter.unrealizedPnl,
+            sizeUsd: perDexPositionStats.lighter.sizeUsd,
           }
         : null;
     }
@@ -603,16 +743,20 @@ export function useAggregatedPortfolio(
             accountBalance: pacificaSummary.accountBalance,
             totalVolume: pacificaSummary.totalVolume,
             totalPnl: pacificaSummary.totalPnl,
+            unrealizedPnl: perDexPositionStats.pacifica.unrealizedPnl,
+            sizeUsd: perDexPositionStats.pacifica.sizeUsd,
           }
         : null;
     }
 
-    if (activeProviders.includes('extended')) {
-      perDex.extended = extendedSummary
+    if (activeProviders.includes('dydx')) {
+      perDex.dydx = dydxSummary
         ? {
-            accountBalance: extendedSummary.accountBalance,
-            totalVolume: extendedSummary.totalVolume,
-            totalPnl: extendedSummary.totalPnl,
+            accountBalance: dydxSummary.accountBalance,
+            totalVolume: dydxSummary.totalVolume,
+            totalPnl: dydxSummary.totalPnl,
+            unrealizedPnl: perDexPositionStats.dydx.unrealizedPnl,
+            sizeUsd: perDexPositionStats.dydx.sizeUsd,
           }
         : null;
     }
@@ -622,22 +766,28 @@ export function useAggregatedPortfolio(
       totalVolume,
       totalPnl,
       totalUnrealizedPnl,
+      totalSizeUsd,
       compositeLeverage,
       perDex,
     };
-  }, [positionQueries, accountQueries, activeProviders, enableLighterWebSocket, lighterVolumeWs.totalVolume]);
+  }, [positionQueries, accountQueries, activeProviders, enableLighterWebSocket, lighterVolumeWs.totalVolume, useHyperliquidWs, hyperliquidWs.wallets, hyperliquidWs.positions]);
 
-  // Refetch all
+  // Refetch all (REST + reconnect WebSocket)
   const refetch = useCallback(() => {
     positionQueries.forEach((q) => q.refetch());
     accountQueries.forEach((q) => q.refetch());
-  }, [positionQueries, accountQueries]);
+    // Reconnect Hyperliquid WebSocket if enabled
+    if (useHyperliquidWs) {
+      hyperliquidWs.reconnect();
+    }
+  }, [positionQueries, accountQueries, useHyperliquidWs, hyperliquidWs]);
 
-  // Loading/error states
+  // Loading/error states (includes WebSocket loading)
   const isLoading =
     positionQueries.some((q) => q.isLoading) ||
     accountQueries.some((q) => q.isLoading) ||
-    (enableLighterWebSocket && lighterVolumeWs.isLoading);
+    (enableLighterWebSocket && lighterVolumeWs.isLoading) ||
+    (useHyperliquidWs && hyperliquidWs.isLoading);
 
   const isFetching =
     positionQueries.some((q) => q.isFetching) ||
@@ -645,26 +795,27 @@ export function useAggregatedPortfolio(
 
   const isError =
     positionQueries.some((q) => q.isError) ||
-    accountQueries.some((q) => q.isError);
+    accountQueries.some((q) => q.isError) ||
+    (useHyperliquidWs && hyperliquidWs.error !== null);
 
   const error =
     positionQueries.find((q) => q.error)?.error ??
     accountQueries.find((q) => q.error)?.error ??
+    (useHyperliquidWs ? hyperliquidWs.error : null) ??
     null;
 
   // Per-DEX loading states
-  // Account queries are indexed: [0] = hyperliquid, [1] = lighter, [2] = pacifica, [3] = extended
-  // Position queries are indexed by activeProviders order (excluding extended)
+  // Account queries are indexed: [0] = hyperliquid, [1] = lighter, [2] = pacifica, [3] = dydx, [4] = hyperliquid portfolio stats
   const loadingStates: PerDexLoadingStates = useMemo(() => {
-    // Position queries exclude extended, so filter activeProviders accordingly
-    const positionProviders = activeProviders.filter((id) => id !== 'extended');
-    const hlPositionIdx = positionProviders.indexOf('hyperliquid');
-    const lighterPositionIdx = positionProviders.indexOf('lighter');
-    const pacificaPositionIdx = positionProviders.indexOf('pacifica');
+    const hlPositionIdx = activeProviders.indexOf('hyperliquid');
+    const lighterPositionIdx = activeProviders.indexOf('lighter');
+    const pacificaPositionIdx = activeProviders.indexOf('pacifica');
+    const dydxPositionIdx = activeProviders.indexOf('dydx');
 
     return {
       hyperliquid:
-        (activeProviders.includes('hyperliquid') && accountQueries[0]?.isLoading) ||
+        (useHyperliquidWs && (hyperliquidWs.isLoading || accountQueries[4]?.isLoading)) ||
+        (activeProviders.includes('hyperliquid') && !useHyperliquidWs && accountQueries[0]?.isLoading) ||
         (hlPositionIdx >= 0 && positionQueries[hlPositionIdx]?.isLoading) ||
         false,
       lighter:
@@ -675,11 +826,12 @@ export function useAggregatedPortfolio(
         (activeProviders.includes('pacifica') && accountQueries[2]?.isLoading) ||
         (pacificaPositionIdx >= 0 && positionQueries[pacificaPositionIdx]?.isLoading) ||
         false,
-      extended:
-        (activeProviders.includes('extended') && accountQueries[3]?.isLoading) ||
+      dydx:
+        (activeProviders.includes('dydx') && accountQueries[3]?.isLoading) ||
+        (dydxPositionIdx >= 0 && positionQueries[dydxPositionIdx]?.isLoading) ||
         false,
     };
-  }, [activeProviders, accountQueries, positionQueries]);
+  }, [activeProviders, accountQueries, positionQueries, useHyperliquidWs, hyperliquidWs.isLoading]);
 
   return {
     data,
