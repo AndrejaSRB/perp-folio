@@ -11,6 +11,7 @@ import type {
   PortfolioProviderId,
 } from '../types/portfolio';
 import type { LighterCredentials } from '../types';
+import { isLighterApiError } from '../types';
 import { fetchPortfolio as fetchHyperliquidPortfolio } from '../providers/hyperliquid';
 import { fetchPortfolio as fetchPacificaPortfolio } from '../providers/pacifica';
 import { fetchPortfolio as fetchLighterPortfolioApi } from '../providers/lighter';
@@ -172,8 +173,12 @@ export function useDexPortfolio(
           try {
             const { pnl, accountValue } = await fetcher(wallet, timeframe);
             return { wallet, pnl, accountValue };
-          } catch {
-            // Return empty on error
+          } catch (e) {
+            // Re-throw LighterApiError auth errors so they surface to UI
+            if (isLighterApiError(e) && e.isAuthError) {
+              throw e;
+            }
+            // Return empty on other errors
             return { wallet, pnl: [], accountValue: [] };
           }
         })

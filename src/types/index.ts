@@ -79,3 +79,6 @@ export type {
   WalletPortfolio,
   PortfolioProviderId,
 } from './portfolio';
+
+// Error types
+export { LighterApiError, isLighterApiError } from './errors';

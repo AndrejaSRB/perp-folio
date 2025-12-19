@@ -6,6 +6,7 @@ import type {
   LighterOrderBookDetailsResponse,
   LighterCredentials,
 } from "../../types";
+import { LighterApiError } from "../../types";
 import { getCached, clearCacheByPrefix } from "../../utils/cache";
 
 const BASE_URL = "https://mainnet.zklighter.elliot.ai";
@@ -131,7 +132,21 @@ export const fetchAccount = async (
   const response = await fetch(url);
 
   if (!response.ok) {
-    // Return empty on any error (including 404)
+    // Throw on auth errors (401) so they can be surfaced to UI
+    if (response.status === 401) {
+      try {
+        const errorData = await response.json() as { code?: number; message?: string };
+        throw new LighterApiError(
+          response.status,
+          errorData.code ?? 0,
+          errorData.message ?? 'Unauthorized'
+        );
+      } catch (e) {
+        if (e instanceof LighterApiError) throw e;
+        throw new LighterApiError(response.status, 0, 'Unauthorized');
+      }
+    }
+    // Return empty on other errors (including 404)
     return {
       code: response.status,
       total: 0,
@@ -139,7 +154,21 @@ export const fetchAccount = async (
     };
   }
 
-  return response.json();
+  const data: LighterAccountsResponse = await response.json();
+
+  // Check for error code in successful response (API returns 200 with error in body)
+  if (data.code && data.code !== 0 && data.code !== 200) {
+    // Check if it's an auth error
+    if (data.code === 20013) {
+      throw new LighterApiError(
+        200,
+        data.code,
+        (data as unknown as { message?: string }).message ?? 'invalid auth: api token not authorized for this account'
+      );
+    }
+  }
+
+  return data;
 };
 
 /**
@@ -273,10 +302,33 @@ export const fetchPnl = async (
   const response = await fetch(url);
 
   if (!response.ok) {
+    // Try to parse error response for auth errors (401)
+    if (response.status === 401) {
+      try {
+        const errorData = await response.json() as { code?: number; message?: string };
+        throw new LighterApiError(
+          response.status,
+          errorData.code ?? 0,
+          errorData.message ?? 'Unauthorized'
+        );
+      } catch (e) {
+        if (e instanceof LighterApiError) throw e;
+        throw new LighterApiError(response.status, 0, 'Unauthorized');
+      }
+    }
     return { code: response.status, resolution, pnl: [] };
   }
 
   const data: LighterPnlResponse = await response.json();
+
+  // Check for error code in successful response (API returns 200 with error in body)
+  if (data.code && data.code !== 0) {
+    throw new LighterApiError(
+      200,
+      data.code,
+      (data as unknown as { message?: string }).message ?? 'API error'
+    );
+  }
 
   // Filter data to only include points within the requested timeframe
   // The API may return data outside the requested range

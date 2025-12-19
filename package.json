@@ -1,6 +1,6 @@
 {
   "name": "@hypersignals/perp-folio",
-  "version": "0.1.21",
+  "version": "0.1.26",
   "description": "Multi-chain DEX position aggregator SDK with React hooks",
   "type": "module",
   "main": "./dist/index.js",

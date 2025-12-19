@@ -277,20 +277,18 @@ const fetchLighterAccountSummary = async (
 
   const results = await Promise.all(
     wallets.map(async (wallet) => {
+      // Fetch account data (this doesn't use fetchAccount from lighter/api.ts, so no auth errors here)
+      let url = `${BASE_URL}/api/v1/account?by=l1_address&value=${wallet}`;
+      if (readToken) {
+        url += `&auth=${readToken}`;
+      }
+
+      let totalAssetValue = 0;
+      let totalPnl = 0;
+
+      // Fetch account data (non-throwing)
       try {
-        // Fetch account data and total PnL in parallel
-        let url = `${BASE_URL}/api/v1/account?by=l1_address&value=${wallet}`;
-        if (readToken) {
-          url += `&auth=${readToken}`;
-        }
-
-        const [accountResponse, totalPnl] = await Promise.all([
-          fetch(url),
-          fetchLighterTotalPnl(wallet, credentials),
-        ]);
-
-        let totalAssetValue = 0;
-
+        const accountResponse = await fetch(url);
         if (accountResponse.ok) {
           const data = await accountResponse.json();
           const accounts = data.accounts ?? [];
@@ -302,11 +300,21 @@ const fetchLighterAccountSummary = async (
             totalAssetValue += parseFloat(account.total_asset_value ?? account.collateral ?? '0');
           }
         }
-
-        return { totalAssetValue, totalPnl };
       } catch {
-        return { totalAssetValue: 0, totalPnl: 0 };
+        // Ignore account fetch errors - just return 0
       }
+
+      // Fetch total PnL separately - this may throw LighterApiError on auth errors
+      // We DON'T re-throw here because we want account balance to still work
+      // Auth errors for PnL should be caught via useDexPortfolio, not useAggregatedPortfolio
+      try {
+        totalPnl = await fetchLighterTotalPnl(wallet, credentials);
+      } catch {
+        // Ignore all errors - just return 0 for totalPnl
+        // Account balance should still be returned even if PnL fails
+      }
+
+      return { totalAssetValue, totalPnl };
     })
   );
 

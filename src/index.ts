@@ -367,3 +367,8 @@ export {
   isZeroPosition,
   type PositionSide,
 } from './utils';
+
+// ============ ERRORS ============
+
+// Lighter API errors
+export { LighterApiError, isLighterApiError } from './types/errors';
