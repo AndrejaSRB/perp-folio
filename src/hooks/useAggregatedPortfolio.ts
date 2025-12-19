@@ -720,9 +720,14 @@ export function useAggregatedPortfolio(
     const perDex: PerDexBreakdown = {};
 
     if (activeProviders.includes('hyperliquid')) {
-      // Use WebSocket data if enabled, otherwise REST
-      const hasHlData = useHyperliquidWs ? hlAccountBalance > 0 : accountQueries[0].data !== null;
-      perDex.hyperliquid = hasHlData
+      // Check if we have any Hyperliquid data (from WebSocket or REST)
+      // Data exists if: WebSocket has wallets, OR REST query has data, OR we have position stats
+      const hasHlData = useHyperliquidWs
+        ? (hyperliquidWs.wallets.length > 0 || accountQueries[4]?.data !== undefined)
+        : (accountQueries[0]?.data !== undefined);
+
+      // Always populate if provider is active and we have ANY data
+      perDex.hyperliquid = hasHlData || hlAccountBalance > 0 || hlTotalVolume > 0 || hlTotalPnl !== 0
         ? {
             accountBalance: hlAccountBalance,
             totalVolume: hlTotalVolume,
@@ -734,11 +739,14 @@ export function useAggregatedPortfolio(
     }
 
     if (activeProviders.includes('lighter')) {
-      perDex.lighter = lighterSummary
+      // Check if we have any Lighter data (from REST or WebSocket volume)
+      const hasLighterData = lighterSummary !== undefined || lighterVolume > 0;
+
+      perDex.lighter = hasLighterData
         ? {
-            accountBalance: lighterSummary.accountBalance,
+            accountBalance: lighterSummary?.accountBalance ?? 0,
             totalVolume: lighterVolume,
-            totalPnl: lighterSummary.totalPnl,
+            totalPnl: lighterSummary?.totalPnl ?? 0,
             unrealizedPnl: perDexPositionStats.lighter.unrealizedPnl,
             sizeUsd: perDexPositionStats.lighter.sizeUsd,
           }
@@ -778,7 +786,7 @@ export function useAggregatedPortfolio(
       compositeLeverage,
       perDex,
     };
-  }, [positionQueries, accountQueries, activeProviders, enableLighterWebSocket, lighterVolumeWs.totalVolume, useHyperliquidWs, hyperliquidWs.wallets, hyperliquidWs.positions]);
+  }, [positionQueries, accountQueries, activeProviders, enableLighterWebSocket, lighterVolumeWs.totalVolume, lighterVolumeWs.volumes, useHyperliquidWs, hyperliquidWs.wallets, hyperliquidWs.positions]);
 
   // Refetch all (REST + reconnect WebSocket)
   const refetch = useCallback(() => {
